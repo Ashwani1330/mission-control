@@ -11,10 +11,11 @@ from typing import ClassVar
 from textual.app import App
 from textual.binding import Binding, BindingType
 
-from mission_control import fmt, launch, settings, themes
+from mission_control import control, fmt, launch, settings, themes
 from mission_control.model import Run
 from mission_control.screens.agents import AgentsScreen, SessionScreen
 from mission_control.screens.base import View
+from mission_control.screens.dialogs import AskText, Confirm
 from mission_control.screens.live import LiveScreen
 from mission_control.screens.models import ModelsScreen
 from mission_control.screens.new_mission import NewMissionScreen
@@ -45,6 +46,9 @@ class MissionControl(App):
         Binding("f", "switch_mode('results')", "Files"),
         Binding("t", "next_theme", "Theme"),
         Binding("n", "new_mission", "New mission"),
+        Binding("P", "pause", "Pause/resume"),
+        Binding("X", "stop", "Stop"),
+        Binding("M", "note", "Note to agents"),
         Binding("escape", "back", "Back"),
         Binding("q", "quit", "Quit"),
     ]
@@ -121,6 +125,45 @@ class MissionControl(App):
                 self.launches.remove(pending)
                 self.notify(f"{pending.mission['name']} stopped before starting (exit {pending.process.returncode}):\n"
                             f"{launch.log_tail(pending.log, 400)}", severity="error", timeout=15)
+
+    # ------------------------------------------------------------ steering (see control.py)
+
+    def _live_run(self) -> Run | None:
+        run = self.selected
+        if run is None or run.status not in ("running", "paused"):
+            self.notify("The selected run is not running.", severity="warning", timeout=3)
+            return None
+        return run
+
+    def action_pause(self) -> None:
+        run = self._live_run()
+        if run is None:
+            return
+        paused = control.read(run.path).get("state") == "paused"
+        control.write(run.path, state="running" if paused else "paused")
+        self.notify("Resuming." if paused else "Pause requested: the run waits before its next step.", timeout=4)
+
+    def action_stop(self) -> None:
+        run = self._live_run()
+        if run is None:
+            return
+
+        def stop(confirmed: bool | None) -> None:
+            if confirmed:
+                control.write(run.path, state="stopped")
+                self.notify("Stop requested: the run ends before its next step.", timeout=4)
+        self.push_screen(Confirm(f"Stop {run.mission}? The current step finishes first."), stop)
+
+    def action_note(self) -> None:
+        run = self._live_run()
+        if run is None:
+            return
+
+        def send(text: str | None) -> None:
+            if text:
+                control.write(run.path, note=text)
+                self.notify("Note queued for the next agent step.", timeout=3)
+        self.push_screen(AskText("Note for the next agent step", "e.g. focus on medical devices"), send)
 
     # ------------------------------------------------------------ navigation
 

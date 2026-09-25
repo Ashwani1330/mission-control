@@ -278,3 +278,27 @@ FullText {
     border-top: solid $accent;
     background: $surface;
 }
+
+/* ---------------------------------------------------------------- dialogs */
+
+Confirm, AskText {
+    align: center middle;
+    background: $background 60%;
+}
+
+.dialog {
+    width: 70;
+    height: auto;
+    padding: 1 2;
+    background: $surface;
+    border-top: solid $accent;
+}
+
+.dialog-buttons {
+    height: 3;
+    margin-top: 1;
+}
+
+.dialog Input {
+    margin-top: 1;
+}

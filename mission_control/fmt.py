@@ -12,7 +12,8 @@ BRIEF = 70
 ACCENT = "#E8663D"  # follows the active theme; set by the app
 MUTED = "grey35"
 STATUS = {"running": ("●", "yellow"), "done": ("✓", "green"), "failed": ("✗", "red"),
-          "crashed": ("✗", "red"), "attention": ("!", "accent"), "unknown": ("○", "dim")}
+          "crashed": ("✗", "red"), "attention": ("!", "accent"), "paused": ("‖", "yellow"), "stopped": ("■", "dim"),
+          "unknown": ("○", "dim")}
 
 
 def use_theme(accent: str, dark: bool) -> None:

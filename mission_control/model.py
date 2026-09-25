@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 # Older runs used "mission.*" for the run lifecycle and "<role>.started" for steps.
-LIFECYCLE = {"run.started": "started", "run.completed": "completed", "run.failed": "failed",
+LIFECYCLE = {"run.started": "started", "run.completed": "completed", "run.failed": "failed", "run.stopped": "stopped",
              "mission.started": "started", "mission.completed": "completed", "mission.failed": "failed"}
 STAMP = re.compile(r"-\d{8}T\d{6}Z$")
 TOKEN_KEYS = ("input_tokens", "cached_input_tokens", "output_tokens")
@@ -120,6 +120,7 @@ class Run:
         self.started: datetime | None = None
         self.last: datetime | None = None
         self.lifecycle: str | None = None
+        self.paused = False  # the runner is waiting at a checkpoint (run.paused … run.resumed)
         self.pid: int | None = None
         self.verdict: str | None = None
         self.error: str | None = None
@@ -138,6 +139,8 @@ class Run:
         if step_name and suffix in ("started", "completed") and prefix not in ("step", "tool", "run"):
             name, fields = f"step.{suffix}", {"role": prefix, **fields}  # legacy "<role>.started"
         self._track_lifecycle(name, fields)
+        if name in ("run.paused", "run.resumed"):
+            self.paused = name == "run.paused"
 
         if name == "step.started":
             step = self._step(step_name, time)
@@ -168,6 +171,7 @@ class Run:
         if state is None:
             return
         self.lifecycle = state
+        self.paused = False
         if state == "started":
             self.pid = fields.get("pid")
             self.error = None
@@ -205,13 +209,13 @@ class Run:
 
     @property
     def status(self) -> str:
-        """running · done · failed · crashed (started, but its process is gone) · unknown."""
-        if self.lifecycle == "completed":
-            return "done"
-        if self.lifecycle == "failed":
-            return "failed"
+        """running · paused · done · stopped · failed · crashed (started, but its process is gone) · unknown."""
+        if self.lifecycle in ("completed", "failed", "stopped"):
+            return {"completed": "done"}.get(self.lifecycle, self.lifecycle)
         if self.lifecycle == "started" and self.pid:
-            return "running" if _alive(self.pid) else "crashed"
+            if not _alive(self.pid):
+                return "crashed"
+            return "paused" if self.paused else "running"
         return "unknown"
 
     @property

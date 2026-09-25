@@ -130,3 +130,37 @@ async def test_live_tiles_show_each_agent_and_open_sessions(tmp_path, research_r
         await pilot.press("enter")
         await pilot.pause()
         assert isinstance(app.screen, SessionScreen) and app.screen.key == "observer-1"
+
+
+async def test_pause_stop_and_note_write_control_file(tmp_path, research_run):
+    from mission_control import control
+    from mission_control.screens.dialogs import AskText, Confirm
+    app = MissionControl(tmp_path)
+    run_dir = research_run.parent
+    async with app.run_test(size=(180, 45)) as pilot:
+        await pilot.pause()
+        await pilot.press("P")
+        assert control.read(run_dir)["state"] == "paused"
+        await pilot.press("P")
+        assert control.read(run_dir)["state"] == "running"
+
+        await pilot.press("M")
+        await pilot.pause()
+        assert isinstance(app.screen, AskText)
+        await pilot.press(*"focus on pumps", "enter")
+        await pilot.pause()
+        assert control.read(run_dir)["notes"][0]["text"] == "focus on pumps"
+
+        await pilot.press("X")
+        await pilot.pause()
+        assert isinstance(app.screen, Confirm)
+        await pilot.press("y")
+        await pilot.pause()
+        assert control.read(run_dir)["state"] == "stopped"
+
+        write(research_run, ev(30, "run.paused", before="x"))
+        app.poll()
+        assert app.selected.status == "paused"
+        write(research_run, ev(31, "run.stopped", reason="stopped by the operator"))
+        app.poll()
+        assert app.selected.status == "stopped"

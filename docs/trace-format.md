@@ -25,6 +25,9 @@ workflow adds its own events (`feature.decision`, `verdict`, …).
 | `run.started` | `trace_version`, `pid`, `workflow`, `mission`, … | the runner |
 | `run.completed` | `verdict`, … | the runner |
 | `run.failed` | `error` | the runner |
+| `run.stopped` | `reason` | the runner, when the operator stopped it |
+| `run.paused` / `run.resumed` | `before` (the step it waits in front of) | the runner |
+| `operator.note` | `step`, `notes` | the runner, when it hands operator notes to a step |
 | `step.started` | `step`, `role`, `vendor`, `model`, `prompt_file` | the agent-call wrapper |
 | `step.completed` | `step`, `seconds`, token counts, `cost_usd`, `tool_calls_by_name`, `error` | the agent-call wrapper |
 | `tool.started` | `step`?, `call_id`, `tool`, `input` | the vendor's stream, or runner code |
@@ -46,6 +49,21 @@ workflow adds its own events (`feature.decision`, `verdict`, …).
   best they can; bump the version only for changes readers must know about.
 - Events older than version 1 (`mission.*` lifecycle, `<role>.started` steps)
   are still read.
+
+## Control (Mission Control → runner)
+
+Mission Control steers a running mission by writing `<run-dir>/control.json`
+atomically:
+
+```json
+{"state": "running", "notes": [{"time": "2026-09-25T12:03:00+00:00", "text": "focus on pumps"}]}
+```
+
+`state` is `running`, `paused` or `stopped`. A runner that supports control reads the
+file before each agent step: while paused it waits there (emitting `run.paused`, then
+`run.resumed`); when stopped it ends cleanly (`run.stopped`); notes it has not yet
+delivered go into the next step's prompt (`operator.note`). A runner that ignores the
+file still works; it just cannot be steered.
 
 ## Writers
 
