@@ -1,0 +1,24 @@
+[project]
+name = "mission-control"
+version = "0.1.0"
+description = "A terminal mission control for multi-agent pipelines: watch every step, tool call and plugin live."
+requires-python = ">=3.12"
+dependencies = ["textual>=8"]
+
+[project.scripts]
+mission-control = "mission_control.__main__:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"

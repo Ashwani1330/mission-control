@@ -1,0 +1,27 @@
+Horizontal {
+    height: 1fr;
+}
+
+#runs, #timeline, #detail {
+    height: 1fr;
+    border: round $panel;
+    border-title-color: $text-muted;
+}
+
+#runs:focus-within, #timeline:focus, #detail:focus {
+    border: round $accent;
+    border-title-color: $accent;
+}
+
+#runs {
+    width: 74;
+}
+
+#timeline {
+    width: 1fr;
+}
+
+#detail {
+    width: 1fr;
+    padding: 0 1;
+}
