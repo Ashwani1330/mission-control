@@ -3,7 +3,13 @@ name = "mission-control"
 version = "0.1.0"
 description = "A terminal mission control for multi-agent pipelines: watch every step, tool call and plugin live."
 requires-python = ">=3.12"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = ["textual>=8"]
+
+[project.urls]
+Repository = "https://github.com/Ashwani1330/mission-control"
 
 [project.scripts]
 mission-control = "mission_control.__main__:main"

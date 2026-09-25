@@ -49,4 +49,8 @@ workflow adds its own events (`feature.decision`, `verdict`, …).
 
 ## Writers
 
-Any program that appends these lines works.
+Any program that appends these lines works; see the README for a minimal Python writer.
+A typical setup: the runner writes the run lifecycle and its own tool calls; a small
+wrapper around each agent call writes `step.*`; and one adapter per agent CLI
+translates that CLI's JSON stream (`codex exec --json`, `claude -p --output-format
+stream-json`, …) into `tool.*`, `message`, `usage` and `session` events as lines arrive.
