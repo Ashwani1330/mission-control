@@ -10,12 +10,12 @@ from textual.app import ComposeResult
 from textual.containers import Center, Middle
 from textual.widgets import Static
 
-from mission_control import fmt
+from mission_control import fmt, widgets
 from mission_control.model import Run, Update
 from mission_control.screens.base import View
 
 KEYS = (("n", "start a new mission"), ("r", "open a run from the list"), ("b", "hide / show the list"),
-        ("t", "change the theme"), ("q", "quit"))
+        ("t", "change the theme"), ("?", "every key"), ("q", "quit"))
 
 
 class HomeScreen(View):
@@ -39,7 +39,7 @@ class HomeScreen(View):
         grid.add_column(justify="right", style=f"bold {fmt.ACCENT}")
         grid.add_column()
         grid.add_row("▲", Text("Mission Control", style="bold"))
-        grid.add_row("", Text(str(self.app.store.root), style="dim"))
+        grid.add_row("", Text(widgets.home_path(self.app.store.root), style="dim"))
         grid.add_row("", "")
         grid.add_row("", Text(f"{len(runs)} runs · {len(running)} running · "
                               f"{fmt.money(spent_today) if spent_today else '$0'} spent today"))

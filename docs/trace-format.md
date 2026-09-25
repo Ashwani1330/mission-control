@@ -65,6 +65,14 @@ file before each agent step: while paused it waits there (emitting `run.paused`,
 delivered go into the next step's prompt (`operator.note`). A runner that ignores the
 file still works; it just cannot be steered.
 
+## Approval (a run that waits for a human)
+
+A runner that needs a human decision part-way (e.g. approve a plan before building)
+ends that phase with `run.completed` and `"verdict": "AWAITING_APPROVAL"`. Mission Control
+lists the run under **Needs you**; when the operator approves (`A`), it runs the
+workflow's `approve` command with `{run_dir}`, which continues in the **same run folder**
+and appends a new `run.started` (usually with a `phase` field) to the same trace.
+
 ## Writers
 
 Any program that appends these lines works; see the README for a minimal Python writer.

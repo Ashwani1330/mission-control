@@ -43,7 +43,7 @@ class RunHeader(Vertical):
     def show(self, run: Run | None, root: Path) -> None:
         brand = Text()
         brand.append("▲ Mission Control", style=f"bold {fmt.ACCENT}")
-        brand.append(f"  {_home(root)}", style="dim")
+        brand.append(f"  {home_path(root)}", style="dim")
         self.query_one("#brand", Static).update(brand)
         if run is None:
             self.query_one("#totals", Static).update("")
@@ -80,7 +80,7 @@ class RunHeader(Vertical):
         self.query_one("#status", Static).update(status)
 
 
-def _home(path: Path) -> str:
+def home_path(path: Path) -> str:
     try:
         return "~/" + str(path.relative_to(Path.home()))
     except ValueError:

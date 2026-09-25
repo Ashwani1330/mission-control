@@ -28,9 +28,11 @@ workflows Mission Control may start:
 choices = ["codex/gpt-5.6-sol", "claude/claude-opus-5-5"]
 
 [[workflow]]
-name = "research"
-draft = ["python3", "-m", "workflows.research.runner", "--draft", "{request}", "--out", "{mission}"]
-run = ["python3", "-m", "workflows.research.runner", "{mission}"]"""
+name = "report"
+run = ["python3", "-m", "pipeline.report", "{mission}"]
+draft = ["python3", "-m", "pipeline.report", "--draft", "{request}", "--out", "{mission}"]
+
+See the README (Launching, approving and steering) for describe and approve."""
 
 
 class NewMissionScreen(Screen):
