@@ -20,7 +20,7 @@ async def test_overview_shows_newest_run(tmp_path, research_run):
     async with app.run_test(size=(180, 45)) as pilot:
         await pilot.pause()
         assert app.selected.mission == "yc"
-        assert keys(app.screen.query_one("#overview-agents")) == ["planner-r1", "observer-1", RUNNER]
+        assert keys(app.screen.query_one("#overview-agents")) == [RUNNER, "planner-r1", "observer-1"]
         assert keys(app.screen.query_one("#overview-plugins")) == ["yc"]
 
         await pilot.press("r")
@@ -73,7 +73,25 @@ async def test_agents_filters_by_vendor(tmp_path, research_run):
         await pilot.press("a")
         await pilot.pause()
         table = app.screen.query_one("#agents")
-        assert keys(table) == ["planner-r1", "observer-1", RUNNER]
+        assert keys(table) == [RUNNER, "planner-r1", "observer-1"]
         await pilot.press("v")  # first vendor in order: claude
         await pilot.pause()
         assert keys(table) == ["observer-1"]
+
+
+async def test_full_view_opens_and_closes(tmp_path, research_run):
+    from mission_control.widgets import FullText
+    app = MissionControl(tmp_path)
+    async with app.run_test(size=(180, 45)) as pilot:
+        await pilot.pause()
+        app.open_session("planner-r1")
+        await pilot.pause()
+        detail = app.screen.query_one(Detail)
+        detail.show(app.selected.steps["planner-r1"].items[0], app.selected)
+        detail.focus()
+        await pilot.press("v")
+        await pilot.pause()
+        assert isinstance(app.screen, FullText)
+        await pilot.press("escape")
+        await pilot.pause()
+        assert isinstance(app.screen, SessionScreen)

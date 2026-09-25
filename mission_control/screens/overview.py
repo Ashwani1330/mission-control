@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from rich.console import Group
 from rich.text import Text
 from textual.app import ComposeResult
@@ -20,7 +22,7 @@ RECENT = 8  # items shown for the active step
 
 
 def log_rows(run: Run) -> list[Row]:
-    """Milestones, newest first: steps starting and ending, workflow events, runner tool calls (grouped)."""
+    """Milestones, oldest first: steps starting and ending, workflow events, runner tool calls (grouped)."""
     lines: list[tuple[str, str]] = []  # (time, text)
     for entry in run.entries:
         if isinstance(entry, Step):
@@ -38,7 +40,7 @@ def log_rows(run: Run) -> list[Row]:
                 lines.append((fmt.clock(entry.time), prefix))
         elif isinstance(entry, Event):
             lines.append((fmt.clock(entry.time), fmt.brief(label(entry).plain.split(" ", 1)[1], 90)))
-    return [(str(i), [time, text]) for i, (time, text) in reversed(list(enumerate(lines)))]
+    return [(str(i), [time, text]) for i, (time, text) in enumerate(lines)]
 
 
 def active_panel(run: Run) -> Group:
@@ -56,6 +58,9 @@ def active_panel(run: Run) -> Group:
 
 
 class OverviewScreen(View):
+    TITLES: ClassVar[dict[str, str]] = {"#active": "Active step", "#overview-agents": "Agents · a",
+                                        "#overview-plugins": "Plugins · p", "#log": "Progress log"}
+
     def body(self) -> ComposeResult:
         with Grid(id="overview"):
             yield Static(id="active")
@@ -63,19 +68,17 @@ class OverviewScreen(View):
             yield make_table("plugin", "calls", "errors", "running", "avg", id="overview-plugins")
             yield make_table("time", "event", id="log")
 
-    def on_mount(self) -> None:
-        titles = {"#active": "Active step", "#overview-agents": "Agents  (a)",
-                  "#overview-plugins": "Plugins  (p)", "#log": "Progress log"}
-        for selector, title in titles.items():
-            self.query_one(selector).border_title = title
-        super().on_mount()
-
     def redraw(self, run: Run, updates: list[Update]) -> None:
         self.query_one("#active", Static).update(active_panel(run))
         sync_table(self.query_one("#overview-agents", DataTable), agent_rows(run, compact=True))
         sync_table(self.query_one("#overview-plugins", DataTable),
                    plugin_rows(summarize(list(run.calls.values()))))
-        sync_table(self.query_one("#log", DataTable), log_rows(run))
+        log = self.query_one("#log", DataTable)
+        rows = log_rows(run)
+        grew = len(rows) > log.row_count
+        sync_table(log, rows)
+        if grew:
+            log.scroll_end(animate=False)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         if event.data_table.id == "overview-agents":

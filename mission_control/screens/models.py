@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from textual.app import ComposeResult
 from textual.widgets import DataTable, Static
@@ -30,6 +30,8 @@ def model_rows(run: Run) -> list[Row]:
 
 
 class ModelsScreen(View):
+    TITLES: ClassVar[dict[str, str]] = {"#models": "Models per role"}
+
     def body(self) -> ComposeResult:
         yield Static("Declared by the runner at start, and what each role's steps actually ran on.", id="models-note")
         yield make_table("role", "declared", "effort", "used", "steps", "in", "out", "cost", id="models")

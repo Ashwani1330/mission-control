@@ -10,7 +10,9 @@ from typing import ClassVar
 
 from textual.app import App
 from textual.binding import Binding, BindingType
+from textual.theme import Theme
 
+from mission_control import fmt
 from mission_control.model import Run
 from mission_control.screens.agents import AgentsScreen, SessionScreen
 from mission_control.screens.base import View
@@ -21,6 +23,9 @@ from mission_control.screens.runs import RunsScreen
 from mission_control.store import RunStore
 
 POLL_SECONDS = 0.5
+THEME = Theme(name="mission-control", dark=True, primary=fmt.ACCENT, accent=fmt.ACCENT, secondary="#8A8F98",
+              foreground="#D4D4D4", background="#0B0B0C", surface="#111113", panel="#1C1C1F",
+              success="#7FB77E", warning="#E0B04B", error="#E0605B")
 
 
 class MissionControl(App):
@@ -48,16 +53,20 @@ class MissionControl(App):
         self.selected: Run | None = self.store.newest()
 
     def on_mount(self) -> None:
+        self.register_theme(THEME)
+        self.theme = THEME.name
         self.set_interval(POLL_SECONDS, self.poll)
 
     def poll(self) -> None:
         changed = {id(run): updates for run, updates in self.store.poll()}
         if self.selected is None:
             self.selected = self.store.newest()
-        updates = changed.get(id(self.selected), []) if self.selected else []
-        running = self.selected is not None and self.selected.status == "running"
-        if isinstance(self.screen, View) and (changed or running):
-            self.screen.refresh_view(updates)
+        if not isinstance(self.screen, View):
+            return
+        if changed:
+            self.screen.refresh_view(changed.get(id(self.selected), []) if self.selected else [])
+        elif self.selected is not None and self.selected.status == "running":
+            self.screen.tick()  # nothing new: only the clock moved
 
     # ------------------------------------------------------------ navigation
 

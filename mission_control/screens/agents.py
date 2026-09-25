@@ -20,17 +20,17 @@ FILTERS = ("vendor", "role", "status")
 
 
 def agent_rows(run: Run, compact: bool = False, only: dict[str, str] | None = None) -> list[Row]:
-    """One row per step, plus a "runner" row when plain runner code made tool calls."""
+    """A "runner" row first when plain runner code made tool calls, then one row per step."""
     rows: list[Row] = []
-    for step in run.steps.values():
-        if _keep(filter_values(step), only):
-            rows.append((step.name, _step_cells(step, compact)))
     runner_calls = [i for i in run.runner_items if isinstance(i, Call)]
     if runner_calls and _keep(RUNNER_VALUES, only):
         cells: list[Any] = [Text("⚙", style="dim"), "runner", "code", "runner"]
         cells += ["", fmt.clock(runner_calls[0].time)] if not compact else []
         cells += ["", str(len(runner_calls))] + (["", "", ""] if not compact else []) + [""]
         rows.append((RUNNER, cells))
+    for step in run.steps.values():
+        if _keep(filter_values(step), only):
+            rows.append((step.name, _step_cells(step, compact)))
     return rows
 
 
@@ -61,6 +61,7 @@ FULL_COLUMNS = ("", "step", "vendor", "role", "model", "started", "took", "tools
 
 
 class AgentsScreen(View):
+    TITLES: ClassVar[dict[str, str]] = {"#agents": "Agents"}
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("v", "cycle('vendor')", "Vendor"),
         Binding("l", "cycle('role')", "Role"),
@@ -105,6 +106,7 @@ class AgentsScreen(View):
 class SessionScreen(View):
     """One agent step from prompt to result (or the runner's own work): its timeline and details."""
 
+    TITLES: ClassVar[dict[str, str]] = {"#session-timeline": "Timeline", "#session-detail": "Detail · v full view"}
     BINDINGS: ClassVar[list[BindingType]] = [Binding("f", "toggle_follow", "Follow")]
 
     def __init__(self, key: str):

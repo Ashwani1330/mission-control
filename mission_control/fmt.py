@@ -9,8 +9,10 @@ from typing import Any
 from rich.text import Text
 
 BRIEF = 70
+ACCENT = "#E8663D"  # also the theme's accent (app.py)
+MUTED = "grey35"
 STATUS = {"running": ("●", "yellow"), "done": ("✓", "green"), "failed": ("✗", "red"),
-          "crashed": ("✗", "red"), "attention": ("!", "magenta"), "unknown": ("?", "dim")}
+          "crashed": ("✗", "red"), "attention": ("!", ACCENT), "unknown": ("○", "dim")}
 
 
 def status_icon(status: str) -> Text:

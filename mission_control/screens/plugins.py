@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import DataTable
@@ -23,6 +25,9 @@ def call_key(call: Call) -> str:
 
 
 class PluginsScreen(View):
+    TITLES: ClassVar[dict[str, str]] = {"#plugins": "Plugins", "#plugin-tools": "Tools",
+                                        "#plugin-calls": "Calls", "#plugin-detail": "Detail · v full view"}
+
     def __init__(self) -> None:
         super().__init__()
         self.plugin: str | None = None  # the plugin whose calls are listed
@@ -56,6 +61,7 @@ class PluginsScreen(View):
         sync_table(self.query_one("#plugin-tools", DataTable),
                    [(tool, [tool, str(n)]) for tool, n in sorted((chosen.tools if chosen else {}).items(),
                                                                   key=lambda kv: -kv[1])])
+        self.query_one("#plugin-calls").border_title = f"{self.plugin or ''} calls  {len(calls)}"
         sync_table(self.query_one("#plugin-calls", DataTable),
                    [(call_key(c), [fmt.status_icon(c.status), fmt.clock(c.time), c.step or "runner", c.tool,
                                    fmt.brief(c.input, 48), fmt.duration(c.seconds)]) for c in calls])

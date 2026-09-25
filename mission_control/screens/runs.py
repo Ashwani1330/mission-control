@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import DataTable
@@ -25,6 +27,8 @@ def run_rows(runs: list[Run]) -> list[Row]:
 
 
 class RunsScreen(View):
+    TITLES: ClassVar[dict[str, str]] = {"#runs": "Runs · enter selects", "#run-detail": "Run"}
+
     def body(self) -> ComposeResult:
         with Horizontal():
             yield make_table("", "workflow", "mission", "started", "took", "result", "cost", id="runs")

@@ -1,51 +1,114 @@
-/* Shared */
+/* Mission Control: flat panes on a dark background, one accent colour. Every pane has a
+   title line on top instead of a box; the focused pane's title turns to the accent. */
 
-#header {
-    height: 1;
-    padding: 0 1;
-    background: $panel;
+Screen {
+    background: $background;
 }
 
+/* ---------------------------------------------------------------- header */
+
+RunHeader {
+    height: 3;
+    padding: 0 1;
+    background: $surface;
+    border-bottom: solid $panel;
+}
+
+#header-top {
+    height: 1;
+}
+
+#brand {
+    width: auto;
+}
+
+#totals {
+    width: 1fr;
+    text-align: right;
+}
+
+#status {
+    height: 1;
+}
+
+/* ---------------------------------------------------------------- panes */
+
 DataTable, Tree, Detail, #active {
-    border: round $panel;
+    background: $background;
+    border: none;
+    border-top: solid $panel;
     border-title-color: $text-muted;
+    border-title-style: bold;
+    padding: 0 1;
+    scrollbar-size-vertical: 1;
+    scrollbar-color: $panel;
+    scrollbar-background: $background;
 }
 
 DataTable:focus, Tree:focus, Detail:focus {
-    border: round $accent;
+    border-top: solid $accent;
     border-title-color: $accent;
+}
+
+DataTable > .datatable--header {
+    background: $background;
+    color: $text-muted;
+    text-style: none;
+}
+
+DataTable > .datatable--cursor, Tree > .tree--cursor {
+    background: $panel;
+    text-style: none;
+}
+
+DataTable:focus > .datatable--cursor, Tree:focus > .tree--cursor {
+    background: $accent 25%;
+}
+
+DataTable > .datatable--hover, Tree > .tree--highlight {
+    background: $surface;
 }
 
 Horizontal {
     height: 1fr;
 }
 
-Detail {
-    padding: 0 1;
+/* ---------------------------------------------------------------- footer */
+
+Footer {
+    background: $surface;
 }
 
-/* Overview: a 2 x 2 grid */
+FooterKey {
+    background: $surface;
+    color: $text-muted;
+}
+
+FooterKey .footer-key--key {
+    background: $surface;
+    color: $accent;
+}
+
+/* ---------------------------------------------------------------- overview: 2 x 2 */
 
 #overview {
     grid-size: 2 2;
     grid-columns: 3fr 2fr;
     grid-rows: 1fr 1fr;
+    grid-gutter: 0 2;
     height: 1fr;
+    padding: 0 1;
 }
 
 #overview > * {
     height: 1fr;
 }
 
-#active {
-    padding: 0 1;
-}
-
-/* Agents and session */
+/* ---------------------------------------------------------------- agents and session */
 
 #filters {
     height: 1;
-    padding: 0 1;
+    padding: 0 2;
     color: $text-muted;
 }
 
@@ -56,15 +119,14 @@ Detail {
 #session-facts {
     height: auto;
     max-height: 10;
-    padding: 0 1;
-    border-bottom: solid $panel;
+    padding: 0 2;
 }
 
 #session-timeline, #session-detail {
     width: 1fr;
 }
 
-/* Plugins */
+/* ---------------------------------------------------------------- plugins */
 
 #plugin-side {
     width: 38;
@@ -78,7 +140,7 @@ Detail {
     width: 2fr;
 }
 
-/* Runs and models */
+/* ---------------------------------------------------------------- runs and models */
 
 #runs {
     width: 3fr;
@@ -90,6 +152,19 @@ Detail {
 }
 
 #models-note {
-    padding: 0 1;
+    padding: 0 2;
     color: $text-muted;
+}
+
+/* ---------------------------------------------------------------- full text viewer */
+
+FullText {
+    background: $background 80%;
+}
+
+#full-text {
+    margin: 1 2;
+    border: none;
+    border-top: solid $accent;
+    background: $surface;
 }
