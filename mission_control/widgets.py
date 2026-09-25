@@ -46,7 +46,9 @@ class RunHeader(Vertical):
         brand.append(f"  {_home(root)}", style="dim")
         self.query_one("#brand", Static).update(brand)
         if run is None:
-            self.query_one("#status", Static).update(Text("No runs yet.", style="dim"))
+            self.query_one("#totals", Static).update("")
+            self.query_one("#status", Static).update(
+                Text("No run selected: pick one from the list (r), or start one (n).", style="dim"))
             return
 
         tokens = run.tokens

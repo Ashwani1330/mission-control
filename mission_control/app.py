@@ -13,16 +13,17 @@ from textual.binding import Binding, BindingType
 
 from mission_control import control, fmt, launch, settings, themes
 from mission_control.model import Run
+from mission_control.runlist import RunList
 from mission_control.screens.agents import AgentsScreen, SessionScreen
 from mission_control.screens.base import View
 from mission_control.screens.dialogs import AskText, Confirm
+from mission_control.screens.home import HomeScreen
 from mission_control.screens.live import LiveScreen
 from mission_control.screens.models import ModelsScreen
 from mission_control.screens.new_mission import NewMissionScreen
 from mission_control.screens.overview import OverviewScreen
 from mission_control.screens.plugins import PluginsScreen
 from mission_control.screens.results import ResultsScreen
-from mission_control.screens.runs import RunsScreen
 from mission_control.store import RunStore
 
 POLL_SECONDS = 0.5
@@ -32,18 +33,19 @@ class MissionControl(App):
     TITLE = "Mission Control"
     CSS_PATH = "app.tcss"
     MODES: ClassVar[dict[str, type[View]]] = {
-        "overview": OverviewScreen, "runs": RunsScreen, "agents": AgentsScreen,
+        "home": HomeScreen, "overview": OverviewScreen, "agents": AgentsScreen,
         "plugins": PluginsScreen, "models": ModelsScreen, "results": ResultsScreen, "live": LiveScreen,
     }
-    DEFAULT_MODE = "overview"
+    DEFAULT_MODE = "home"  # on_mount moves to the overview when a run is live at start
     BINDINGS: ClassVar[list[BindingType]] = [
-        Binding("o", "switch_mode('overview')", "Overview"),
-        Binding("r", "switch_mode('runs')", "Runs"),
-        Binding("l", "switch_mode('live')", "Live"),
-        Binding("a", "switch_mode('agents')", "Agents"),
-        Binding("p", "switch_mode('plugins')", "Plugins"),
-        Binding("m", "switch_mode('models')", "Models"),
-        Binding("f", "switch_mode('results')", "Files"),
+        Binding("o", "open('overview')", "Overview"),
+        Binding("r", "focus_runs", "Runs"),
+        Binding("b", "toggle_run_list", "List"),
+        Binding("l", "open('live')", "Live"),
+        Binding("a", "open('agents')", "Agents"),
+        Binding("p", "open('plugins')", "Plugins"),
+        Binding("m", "open('models')", "Models"),
+        Binding("f", "open('results')", "Files"),
         Binding("t", "next_theme", "Theme"),
         Binding("n", "new_mission", "New mission"),
         Binding("P", "pause", "Pause/resume"),
@@ -66,13 +68,19 @@ class MissionControl(App):
         self.launches: list[launch.Launch] = []
         self.store = RunStore(runs_dir)
         self.store.poll()
-        self.selected: Run | None = self.store.newest()
+        # Open on a live run if there is one; otherwise on a clean home screen.
+        live = [r for r in self.store.runs.values() if r.status in ("running", "paused")]
+        self.selected: Run | None = max(live, key=lambda r: r.started.timestamp() if r.started else 0.0,
+                                        default=None)
+        self.show_run_list = True
 
     def on_mount(self) -> None:
         for theme in themes.THEMES:
             self.register_theme(theme)
         saved = settings.load().get("theme")
         self.theme = saved if saved in themes.BY_NAME else themes.DEFAULT
+        if self.selected is not None:
+            self.switch_mode("overview")
         self.set_interval(POLL_SECONDS, self.poll)
 
     def watch_theme(self, name: str) -> None:
@@ -90,8 +98,6 @@ class MissionControl(App):
 
     def poll(self) -> None:
         changed = {id(run): updates for run, updates in self.store.poll()}
-        if self.selected is None:
-            self.selected = self.store.newest()
         self._follow_launches()
         if not isinstance(self.screen, View):
             return
@@ -168,8 +174,28 @@ class MissionControl(App):
     # ------------------------------------------------------------ navigation
 
     def select_run(self, run: Run) -> None:
+        """Point every screen at `run`; from home (or a pushed screen), go to its overview."""
         self.selected = run
-        self.switch_mode("overview")
+        if self.current_mode == "home" or not isinstance(self.screen, View):
+            self.switch_mode("overview")  # the screen redraws itself when it mounts or resumes
+        elif isinstance(self.screen, View):
+            self.screen.refresh_view([])
+
+    def action_open(self, mode: str) -> None:
+        if self.selected is None:
+            self.notify("Pick a run from the list first (r), or start one (n).", timeout=3)
+            self.action_focus_runs()
+            return
+        self.switch_mode(mode)
+
+    def action_focus_runs(self) -> None:
+        self.show_run_list = True
+        if isinstance(self.screen, View):
+            self.screen.refresh_view([])
+            self.screen.query_one(RunList).focus()
+
+    def action_toggle_run_list(self) -> None:
+        self.show_run_list = not self.show_run_list
         if isinstance(self.screen, View):
             self.screen.refresh_view([])
 
@@ -185,5 +211,7 @@ class MissionControl(App):
     def action_back(self) -> None:
         if len(self.screen_stack) > 1:
             self.pop_screen()
-        elif self.current_mode != "overview":
+        elif self.current_mode not in ("overview", "home"):
             self.switch_mode("overview")
+        elif self.current_mode == "overview":
+            self.switch_mode("home")

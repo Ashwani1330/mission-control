@@ -23,9 +23,11 @@ async def test_overview_shows_newest_run(tmp_path, research_run):
         assert keys(app.screen.query_one("#overview-agents")) == [RUNNER, "planner-r1", "observer-1"]
         assert keys(app.screen.query_one("#overview-plugins")) == ["yc"]
 
+        from mission_control.runlist import RunList
         await pilot.press("r")
         await pilot.pause()
-        assert app.current_mode == "runs" and len(keys(app.screen.query_one("#runs"))) == 2
+        runs = app.screen.query_one(RunList)
+        assert runs.has_focus and runs.option_count == 4  # "Running" + 1 run, "Earlier" + 1 run
 
 
 async def test_session_follows_new_events_live(tmp_path, research_run):
@@ -164,3 +166,23 @@ async def test_pause_stop_and_note_write_control_file(tmp_path, research_run):
         write(research_run, ev(31, "run.stopped", reason="stopped by the operator"))
         app.poll()
         assert app.selected.status == "stopped"
+
+
+async def test_opens_clean_home_when_nothing_runs_and_list_selects_runs(tmp_path):
+    from mission_control.runlist import RunList
+    from mission_control.screens.home import HomeScreen
+    write(tmp_path / "research" / "done-20260925T100000Z" / "events.jsonl",
+          ev(0, "run.started", pid=1), ev(9, "run.completed", verdict="PASS"))
+    app = MissionControl(tmp_path)
+    async with app.run_test(size=(180, 45)) as pilot:
+        await pilot.pause()
+        assert isinstance(app.screen, HomeScreen) and app.selected is None
+        await pilot.press("a")  # needs a run: stays home, focuses the list
+        await pilot.pause()
+        assert app.current_mode == "home" and app.screen.query_one(RunList).has_focus
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        assert app.current_mode == "overview" and app.selected.mission == "done"
+        await pilot.press("b")
+        await pilot.pause()
+        assert not app.screen.query_one(RunList).display

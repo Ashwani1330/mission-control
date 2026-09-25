@@ -75,6 +75,7 @@ async def test_draft_edit_models_and_launch(tmp_path):
             app.poll()
             if app.selected is not None and app.selected.mission == "demo-mission":
                 break
-        assert app.selected.mission == "demo-mission"
+        await pilot.pause(0.2)
+        assert app.selected.mission == "demo-mission" and app.current_mode == "overview"
         assert app.selected.models["worker"] == {"vendor": "claude", "model": "opus", "effort": "high"}
         assert not isinstance(app.screen, NewMissionScreen)

@@ -69,9 +69,43 @@ DataTable > .datatable--hover, Tree > .tree--highlight {
     background: $surface;
 }
 
-/* A screen's main row fills the space between header and footer (not rows inside widgets). */
-Screen > Horizontal {
+/* The frame (run list + main area) fills the space between header and footer; inside the
+   main area, a screen's own top-level row fills it (not rows inside widgets). */
+#frame {
     height: 1fr;
+}
+
+#main {
+    width: 1fr;
+}
+
+#main > Horizontal {
+    height: 1fr;
+}
+
+#run-list {
+    width: 34;
+    height: 1fr;
+    background: $surface;
+    border: none;
+    border-top: solid $panel;
+    border-title-color: $text-muted;
+    border-title-style: bold;
+    padding: 0 1;
+}
+
+#run-list:focus {
+    border-top: solid $accent;
+    border-title-color: $accent;
+}
+
+#run-list > .option-list--option-highlighted {
+    background: $accent 25%;
+}
+
+#home {
+    width: auto;
+    height: auto;
 }
 
 /* ---------------------------------------------------------------- footer */
@@ -142,15 +176,6 @@ FooterKey .footer-key--key {
 }
 
 /* ---------------------------------------------------------------- runs and models */
-
-#runs {
-    width: 3fr;
-    height: 1fr;
-}
-
-#run-detail {
-    width: 2fr;
-}
 
 #models-note {
     padding: 0 2;

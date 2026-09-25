@@ -75,14 +75,18 @@ events every half second.
 
 ## Screens
 
-One screen per question, one key each. `esc` goes back, `q` quits, and the bar at the
-bottom always lists the keys that work where you are.
+Mission Control opens on a clean **Home** screen (or straight on a run that is live). A
+**run list** sits on the left of every screen, like the chat list in an LLM app: running
+runs first, then today's, then earlier ones. Pick one and every screen shows it; `r`
+jumps to the list, `b` hides it.
+
+One screen per question, one key each. `esc` goes back (to Home from the overview), `q`
+quits, and the bar at the bottom always lists the keys that work where you are.
 
 | Key | Screen | Answers |
 |---|---|---|
 | `o` | **Overview** | How is this run going? Active step and its latest calls, agents, plugins, progress log. |
 | `l` | **Live** | What is every agent doing right now? One tile per agent, running ones first; `enter` opens a tile. |
-| `r` | **Runs** | Which runs exist? Newest first, with result and cost; `enter` selects one. |
 | `a` | **Agents** | Who did what? Every step with vendor, role, model, time, tokens and cost, plus the runner's own work. `v` / `l` / `s` filter by vendor / role / status. |
 | `enter` | **Session** | What exactly happened in one step? Prompt to result, every message and tool call with full input and output. `w` follows the newest. |
 | `p` | **Plugins** | Which tools were used, and how? Calls grouped by plugin (yc, web, shell, skills, files) and by tool. |
@@ -196,6 +200,7 @@ mission_control/
   model.py     fold trace events into runs, steps and tool calls (no Textual)
   plugins.py   group tool calls into plugins (no Textual)
   store.py     find runs; tail each trace from a byte offset
+  runlist.py   the run list beside every screen
   launch.py    read mission-control.toml; draft and launch missions (no Textual)
   control.py   write control.json to pause, stop or send notes
   themes.py    colour themes; settings.py remembers the choice
