@@ -21,7 +21,7 @@ from textual.timer import Timer
 from textual.widgets import DataTable, Footer, Static, TextArea, Tree
 from textual.widgets.tree import TreeNode
 
-from mission_control import fmt
+from mission_control import control, fmt
 from mission_control.model import Call, Item, Run, Step, Update
 
 Row = tuple[str, Sequence[Any]]  # (row key, cells)
@@ -63,8 +63,13 @@ class RunHeader(Vertical):
         steps = list(run.steps.values())
         done = sum(s.done for s in steps)
         state = run.verdict if run.status == "done" and run.verdict else run.status
+        requested = control.read(run.path).get("state") if run.status == "running" else None
         status = Text()
-        status.append_text(fmt.status_text(run.status, state.upper()))
+        if requested in ("paused", "stopped"):  # asked for, but the runner is still inside a step
+            label = "PAUSING" if requested == "paused" else "STOPPING"
+            status.append_text(fmt.status_text("paused", f"{label} · after the current step"))
+        else:
+            status.append_text(fmt.status_text(run.status, state.upper()))
         status.append(f"   {run.workflow} / {run.mission}   ", style="bold")
         filled = round(self.BAR * done / len(steps)) if steps else 0
         status.append("━" * filled, style=fmt.ACCENT)

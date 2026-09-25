@@ -143,6 +143,9 @@ async def test_pause_stop_and_note_write_control_file(tmp_path, research_run):
         await pilot.pause()
         await pilot.press("P")
         assert control.read(run_dir)["state"] == "paused"
+        app.screen.refresh_view([])
+        from mission_control.widgets import RunHeader
+        assert "PAUSING" in str(app.screen.query_one(RunHeader).query_one("#status").render())
         await pilot.press("P")
         assert control.read(run_dir)["state"] == "running"
 
