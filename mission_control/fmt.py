@@ -9,19 +9,29 @@ from typing import Any
 from rich.text import Text
 
 BRIEF = 70
-ACCENT = "#E8663D"  # also the theme's accent (app.py)
+ACCENT = "#E8663D"  # follows the active theme; set by the app
 MUTED = "grey35"
 STATUS = {"running": ("●", "yellow"), "done": ("✓", "green"), "failed": ("✗", "red"),
-          "crashed": ("✗", "red"), "attention": ("!", ACCENT), "unknown": ("○", "dim")}
+          "crashed": ("✗", "red"), "attention": ("!", "accent"), "unknown": ("○", "dim")}
+
+
+def use_theme(accent: str, dark: bool) -> None:
+    global ACCENT, MUTED
+    ACCENT, MUTED = accent, "grey35" if dark else "grey70"
+
+
+def _status(status: str) -> tuple[str, str]:
+    icon, style = STATUS.get(status, STATUS["unknown"])
+    return icon, ACCENT if style == "accent" else style
 
 
 def status_icon(status: str) -> Text:
-    icon, style = STATUS.get(status, STATUS["unknown"])
+    icon, style = _status(status)
     return Text(icon, style=style)
 
 
 def status_text(status: str, label: str | None = None) -> Text:
-    icon, style = STATUS.get(status, STATUS["unknown"])
+    icon, style = _status(status)
     return Text(f"{icon} {label or status}", style=style)
 
 

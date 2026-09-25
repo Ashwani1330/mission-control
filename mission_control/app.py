@@ -10,22 +10,19 @@ from typing import ClassVar
 
 from textual.app import App
 from textual.binding import Binding, BindingType
-from textual.theme import Theme
 
-from mission_control import fmt
+from mission_control import fmt, settings, themes
 from mission_control.model import Run
 from mission_control.screens.agents import AgentsScreen, SessionScreen
 from mission_control.screens.base import View
 from mission_control.screens.models import ModelsScreen
 from mission_control.screens.overview import OverviewScreen
 from mission_control.screens.plugins import PluginsScreen
+from mission_control.screens.results import ResultsScreen
 from mission_control.screens.runs import RunsScreen
 from mission_control.store import RunStore
 
 POLL_SECONDS = 0.5
-THEME = Theme(name="mission-control", dark=True, primary=fmt.ACCENT, accent=fmt.ACCENT, secondary="#8A8F98",
-              foreground="#D4D4D4", background="#0B0B0C", surface="#111113", panel="#1C1C1F",
-              success="#7FB77E", warning="#E0B04B", error="#E0605B")
 
 
 class MissionControl(App):
@@ -33,7 +30,7 @@ class MissionControl(App):
     CSS_PATH = "app.tcss"
     MODES: ClassVar[dict[str, type[View]]] = {
         "overview": OverviewScreen, "runs": RunsScreen, "agents": AgentsScreen,
-        "plugins": PluginsScreen, "models": ModelsScreen,
+        "plugins": PluginsScreen, "models": ModelsScreen, "results": ResultsScreen,
     }
     DEFAULT_MODE = "overview"
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -42,6 +39,8 @@ class MissionControl(App):
         Binding("a", "switch_mode('agents')", "Agents"),
         Binding("p", "switch_mode('plugins')", "Plugins"),
         Binding("m", "switch_mode('models')", "Models"),
+        Binding("f", "switch_mode('results')", "Files"),
+        Binding("t", "next_theme", "Theme"),
         Binding("escape", "back", "Back"),
         Binding("q", "quit", "Quit"),
     ]
@@ -53,9 +52,24 @@ class MissionControl(App):
         self.selected: Run | None = self.store.newest()
 
     def on_mount(self) -> None:
-        self.register_theme(THEME)
-        self.theme = THEME.name
+        for theme in themes.THEMES:
+            self.register_theme(theme)
+        saved = settings.load().get("theme")
+        self.theme = saved if saved in themes.BY_NAME else themes.DEFAULT
         self.set_interval(POLL_SECONDS, self.poll)
+
+    def watch_theme(self, name: str) -> None:
+        theme = themes.BY_NAME.get(name)
+        if theme is not None:
+            fmt.use_theme(theme.accent or fmt.ACCENT, theme.dark)
+        if isinstance(self.screen, View):
+            self.screen.refresh_view([])
+
+    def action_next_theme(self) -> None:
+        names = [t.name for t in themes.THEMES]
+        self.theme = names[(names.index(self.theme) + 1) % len(names)] if self.theme in names else names[0]
+        settings.save(theme=self.theme)
+        self.notify(f"theme: {self.theme}", timeout=2)
 
     def poll(self) -> None:
         changed = {id(run): updates for run, updates in self.store.poll()}

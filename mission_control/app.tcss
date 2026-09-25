@@ -168,3 +168,18 @@ FullText {
     border-top: solid $accent;
     background: $surface;
 }
+
+/* ---------------------------------------------------------------- results */
+
+#files {
+    width: 40;
+}
+
+#preview-md, #preview-text {
+    width: 1fr;
+    border: none;
+    border-top: solid $panel;
+    border-title-color: $text-muted;
+    border-title-style: bold;
+    padding: 0 1;
+}

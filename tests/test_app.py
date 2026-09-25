@@ -95,3 +95,24 @@ async def test_full_view_opens_and_closes(tmp_path, research_run):
         await pilot.press("escape")
         await pilot.pause()
         assert isinstance(app.screen, SessionScreen)
+
+
+async def test_results_previews_files_and_theme_cycles(tmp_path, research_run):
+    from textual.widgets import TextArea
+
+    from mission_control import settings
+    (research_run.parent / "summary.json").write_text('{"verdict":"PASS"}')
+    app = MissionControl(tmp_path)
+    async with app.run_test(size=(180, 45)) as pilot:
+        await pilot.pause()
+        await pilot.press("f")
+        await pilot.pause()
+        assert app.current_mode == "results"
+        app.screen._show(research_run.parent / "summary.json")
+        await pilot.pause()
+        assert '"verdict": "PASS"' in app.screen.query_one("#preview-text", TextArea).text
+
+        first = app.theme
+        await pilot.press("t")
+        await pilot.pause()
+        assert app.theme != first and settings.load()["theme"] == app.theme

@@ -34,3 +34,9 @@ def research_run(tmp_path):
           ev(8, "step.started", step="observer-1", role="observer", vendor="claude", model="opus"),
           ev(9, "tool.started", step="observer-1", call_id="t1", tool="mcp__yc__search", input={"entity": "x"}))
     return trace
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings(tmp_path, monkeypatch):
+    """Never read or write the real user's settings."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))

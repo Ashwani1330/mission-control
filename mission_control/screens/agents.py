@@ -107,7 +107,7 @@ class SessionScreen(View):
     """One agent step from prompt to result (or the runner's own work): its timeline and details."""
 
     TITLES: ClassVar[dict[str, str]] = {"#session-timeline": "Timeline", "#session-detail": "Detail · v full view"}
-    BINDINGS: ClassVar[list[BindingType]] = [Binding("f", "toggle_follow", "Follow")]
+    BINDINGS: ClassVar[list[BindingType]] = [Binding("w", "toggle_follow", "Follow newest")]
 
     def __init__(self, key: str):
         super().__init__()
