@@ -30,7 +30,7 @@ class View(Screen):
             yield RunList(id="run-list")
             with Vertical(id="main"):
                 yield from self.body()
-        yield Footer()
+        yield Footer(compact=True)
 
     def body(self) -> ComposeResult:
         yield from ()

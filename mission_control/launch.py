@@ -126,10 +126,10 @@ def draft(config: Config, workflow: str, request: str, context: str | None = Non
 
 
 def describe(config: Config, workflow: str) -> dict[str, Any]:
-    """The workflow's mission options for the form: {"selects", "choices", "numbers"}; empty if none."""
+    """The workflow's mission options for the form: {"selects", "choices", "numbers", "models"}."""
     flow = config.workflows[workflow]
     if flow.describe is None:
-        return {"selects": [], "choices": [], "numbers": []}
+        return {"selects": [], "choices": [], "numbers": [], "models": {}}
     try:
         done = subprocess.run(flow.describe, cwd=config.root, capture_output=True, text=True, timeout=60, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -140,7 +140,8 @@ def describe(config: Config, workflow: str) -> dict[str, Any]:
         options = None
     if not isinstance(options, dict):
         raise LaunchError(f"describe for {workflow} failed: {(done.stderr or done.stdout).strip()[-300:]}")
-    return {key: options.get(key, []) for key in ("selects", "choices", "numbers")}
+    return {**{key: options.get(key, []) for key in ("selects", "choices", "numbers")},
+            "models": options.get("models") or {}}
 
 
 def launch(config: Config, workflow: str, mission: dict[str, Any]) -> Launch:

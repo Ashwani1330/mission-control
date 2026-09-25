@@ -1,17 +1,48 @@
-/* Mission Control: flat panes on a dark background, one accent colour. Every pane has a
-   title line on top instead of a box; the focused pane's title turns to the accent. */
+/* Mission Control
+   One look everywhere: rounded, titled panels (lazygit / Posting style) on a dark
+   background; the focused panel's border and title light up in the accent; compact
+   one-line inputs; thin, quiet scrollbars. Colours come from the theme (themes.py). */
 
 Screen {
     background: $background;
+}
+
+* {
+    scrollbar-size-vertical: 1;
+    scrollbar-size-horizontal: 1;
+    scrollbar-color: $panel;
+    scrollbar-color-hover: $panel-lighten-2;
+    scrollbar-color-active: $accent;
+    scrollbar-background: $background;
+    scrollbar-background-hover: $background;
+    scrollbar-background-active: $background;
+    scrollbar-corner-color: $background;
+}
+
+/* ---------------------------------------------------------------- panels */
+
+.panel, DataTable, Tree, Detail, #active, .tile, #run-list, #preview-md, #preview-text {
+    background: $background;
+    border: round $panel;
+    border-title-color: $text-muted;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    padding: 0 1;
+}
+
+.panel:focus-within, DataTable:focus, Tree:focus, Detail:focus, .tile:focus, #run-list:focus,
+#preview-text:focus {
+    border: round $accent;
+    border-title-color: $accent;
 }
 
 /* ---------------------------------------------------------------- header */
 
 RunHeader {
     height: 3;
-    padding: 0 1;
+    padding: 0 2;
     background: $surface;
-    border-bottom: solid $panel;
+    border-bottom: hkey $panel;
 }
 
 #header-top {
@@ -31,24 +62,7 @@ RunHeader {
     height: 1;
 }
 
-/* ---------------------------------------------------------------- panes */
-
-DataTable, Tree, Detail, #active {
-    background: $background;
-    border: none;
-    border-top: solid $panel;
-    border-title-color: $text-muted;
-    border-title-style: bold;
-    padding: 0 1;
-    scrollbar-size-vertical: 1;
-    scrollbar-color: $panel;
-    scrollbar-background: $background;
-}
-
-DataTable:focus, Tree:focus, Detail:focus {
-    border-top: solid $accent;
-    border-title-color: $accent;
-}
+/* ---------------------------------------------------------------- tables and trees */
 
 DataTable > .datatable--header {
     background: $background;
@@ -62,17 +76,18 @@ DataTable > .datatable--cursor, Tree > .tree--cursor {
 }
 
 DataTable:focus > .datatable--cursor, Tree:focus > .tree--cursor {
-    background: $accent 25%;
+    background: $accent 22%;
 }
 
 DataTable > .datatable--hover, Tree > .tree--highlight {
     background: $surface;
 }
 
-/* The frame (run list + main area) fills the space between header and footer; inside the
-   main area, a screen's own top-level row fills it (not rows inside widgets). */
+/* ---------------------------------------------------------------- frame: run list + main area */
+
 #frame {
     height: 1fr;
+    padding: 0 1;
 }
 
 #main {
@@ -87,25 +102,15 @@ DataTable > .datatable--hover, Tree > .tree--highlight {
     width: 34;
     height: 1fr;
     background: $surface;
-    border: none;
-    border-top: solid $panel;
-    border-title-color: $text-muted;
-    border-title-style: bold;
-    padding: 0 1;
-}
-
-#run-list:focus {
-    border-top: solid $accent;
-    border-title-color: $accent;
+    margin-right: 1;
 }
 
 #run-list > .option-list--option-highlighted {
-    background: $accent 25%;
+    background: $accent 22%;
 }
 
-#home {
-    width: auto;
-    height: auto;
+#run-list:focus > .option-list--option-highlighted {
+    background: $accent 35%;
 }
 
 /* ---------------------------------------------------------------- footer */
@@ -122,6 +127,17 @@ FooterKey {
 FooterKey .footer-key--key {
     background: $surface;
     color: $accent;
+    text-style: bold;
+}
+
+/* ---------------------------------------------------------------- home */
+
+#home {
+    width: auto;
+    height: auto;
+    padding: 1 4;
+    border: round $panel;
+    background: $surface;
 }
 
 /* ---------------------------------------------------------------- overview: 2 x 2 */
@@ -130,13 +146,31 @@ FooterKey .footer-key--key {
     grid-size: 2 2;
     grid-columns: 3fr 2fr;
     grid-rows: 1fr 1fr;
-    grid-gutter: 0 2;
+    grid-gutter: 0 1;
     height: 1fr;
-    padding: 0 1;
 }
 
 #overview > * {
     height: 1fr;
+}
+
+/* ---------------------------------------------------------------- live tiles */
+
+#live {
+    grid-size: 2;
+    grid-gutter: 0 1;
+    height: 1fr;
+}
+
+.tile {
+    height: 1fr;
+    border-title-align: left;
+    border-title-color: $text;
+    overflow: hidden;
+}
+
+.tile:focus {
+    background: $surface;
 }
 
 /* ---------------------------------------------------------------- agents and session */
@@ -155,13 +189,14 @@ FooterKey .footer-key--key {
     height: auto;
     max-height: 10;
     padding: 0 2;
+    margin-bottom: 1;
 }
 
 #session-timeline, #session-detail {
     width: 1fr;
 }
 
-/* ---------------------------------------------------------------- plugins */
+/* ---------------------------------------------------------------- plugins, models, files */
 
 #plugin-side {
     width: 38;
@@ -175,27 +210,10 @@ FooterKey .footer-key--key {
     width: 2fr;
 }
 
-/* ---------------------------------------------------------------- runs and models */
-
 #models-note {
     padding: 0 2;
     color: $text-muted;
 }
-
-/* ---------------------------------------------------------------- full text viewer */
-
-FullText {
-    background: $background 80%;
-}
-
-#full-text {
-    margin: 1 2;
-    border: none;
-    border-top: solid $accent;
-    background: $surface;
-}
-
-/* ---------------------------------------------------------------- results */
 
 #files {
     width: 40;
@@ -203,137 +221,101 @@ FullText {
 
 #preview-md, #preview-text {
     width: 1fr;
-    border: none;
-    border-top: solid $panel;
-    border-title-color: $text-muted;
-    border-title-style: bold;
-    padding: 0 1;
-}
-
-/* ---------------------------------------------------------------- new mission */
-
-#nm-title {
-    height: 1;
-    padding: 0 1;
-    background: $surface;
-}
-
-#nm-help {
-    padding: 1 2;
-}
-
-#nm-body {
-    height: 1fr;
-    padding: 1 2;
-}
-
-#nm-left, #nm-right {
-    width: 1fr;
-    padding: 0 1;
-}
-
-#nm-body Label {
-    color: $text-muted;
-    margin-top: 1;
-}
-
-#nm-workflow {
-    width: 1fr;
-}
-
-#nm-request {
-    height: 8;
-}
-
-#nm-mission {
-    height: 2fr;
-}
-
-#nm-models {
-    height: 1fr;
-}
-
-.nm-model-row {
-    height: 3;
-}
-
-.nm-role {
-    width: 14;
-    margin-top: 1;
-}
-
-.nm-model {
-    width: 1fr;
-}
-
-.nm-effort {
-    width: 16;
-}
-
-.nm-buttons {
-    height: 3;
-    margin-top: 1;
-}
-
-#nm-status {
-    height: auto;
-    margin-top: 1;
-}
-
-/* ---------------------------------------------------------------- live tiles */
-
-#live {
-    grid-size: 2;
-    grid-gutter: 1 2;
-    padding: 0 1;
-    height: 1fr;
-}
-
-.tile {
-    height: 1fr;
-    border: none;
-    border-top: solid $panel;
-    border-title-align: left;
-    border-title-color: $text;
-    padding: 0 1;
-    overflow: hidden;
-}
-
-.tile:focus {
-    border-top: solid $accent;
-    background: $surface;
 }
 
 /* ---------------------------------------------------------------- dialogs */
 
-Confirm, AskText {
+FullText, Confirm, AskText, KeysScreen {
     align: center middle;
-    background: $background 60%;
+    background: $background 70%;
+}
+
+#full-text {
+    margin: 1 2;
+    border: round $accent;
+    background: $surface;
 }
 
 .dialog {
-    width: 70;
+    width: 72;
     height: auto;
-    padding: 1 2;
+    padding: 1 3;
     background: $surface;
-    border-top: solid $accent;
+    border: round $accent;
+}
+
+.dialog.keys {
+    width: 64;
 }
 
 .dialog-buttons {
-    height: 3;
+    height: auto;
     margin-top: 1;
+}
+
+.dialog-buttons Button {
+    margin-right: 2;
 }
 
 .dialog Input {
     margin-top: 1;
 }
 
-/* ---------------------------------------------------------------- new mission: options form */
+/* ---------------------------------------------------------------- new mission */
+
+#nm-title {
+    height: 1;
+    padding: 0 2;
+    background: $surface;
+    margin-bottom: 1;
+}
+
+#nm-help {
+    margin: 1 2;
+    padding: 1 2;
+}
+
+#nm-body {
+    height: 1fr;
+    padding: 0 1;
+}
+
+#nm-left {
+    width: 5fr;
+    margin-right: 1;
+}
+
+#nm-right {
+    width: 6fr;
+}
+
+#nm-workflow-panel {
+    height: auto;
+}
+
+#nm-workflow {
+    width: 1fr;
+}
+
+#nm-workflow-about {
+    height: auto;
+    margin-top: 1;
+}
+
+#nm-request {
+    height: 9;
+}
 
 #nm-options {
     height: 1fr;
-    background: $surface;
-    padding: 0 1;
+}
+
+#nm-mission {
+    height: 3fr;
+}
+
+#nm-models {
+    height: 2fr;
 }
 
 .nm-form-label {
@@ -342,26 +324,77 @@ Confirm, AskText {
     margin-top: 1;
 }
 
+.nm-select {
+    width: 1fr;
+}
+
 .nm-check {
-    background: $surface;
-    border: none;
-    padding: 0;
+    background: transparent;
     height: 1;
 }
 
-.nm-number-row {
-    height: 3;
-}
-
-.nm-number-label {
-    width: 22;
+.nm-numbers {
+    grid-size: 2;
+    grid-rows: 1;
+    grid-gutter: 1 3;
+    height: auto;
     margin-top: 1;
 }
 
-.nm-number {
-    width: 16;
+.nm-number-row {
+    height: 1;
 }
 
-.nm-select {
+.nm-number-label {
     width: 1fr;
+    color: $text;
+}
+
+.nm-number {
+    width: 12;
+}
+
+.nm-model-row {
+    height: 1;
+    margin-top: 1;
+}
+
+.nm-role {
+    width: 14;
+    color: $text;
+    text-style: bold;
+}
+
+.nm-model {
+    width: 1fr;
+    margin-right: 1;
+}
+
+.nm-effort {
+    width: 14;
+}
+
+#nm-actions {
+    height: 1;
+    margin: 1 2 0 2;
+}
+
+#nm-status {
+    width: 1fr;
+    height: 1;
+}
+
+.action {
+    margin-left: 2;
+    min-width: 16;
+}
+
+.action.go {
+    background: $success 30%;
+    color: $text;
+}
+
+.action.go:disabled {
+    background: $panel;
+    color: $text-disabled;
 }

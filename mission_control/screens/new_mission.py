@@ -50,35 +50,43 @@ class NewMissionScreen(Screen):
         self._form_for: str | None = None  # the workflow the form was built for
 
     def compose(self) -> ComposeResult:
-        yield Static(Text("▲ New mission", style=f"bold {fmt.ACCENT}"), id="nm-title")
+        title = Text()
+        title.append("▲ New mission", style=f"bold {fmt.ACCENT}")
+        title.append("   describe the work · pick options · draft · review · launch", style="dim")
+        yield Static(title, id="nm-title")
         if self.config is None or not self.config.workflows:
-            yield Static(self.problem or HELP, id="nm-help")
-            yield Footer()
+            yield Static(self.problem or HELP, id="nm-help", classes="panel")
+            yield Footer(compact=True)
             return
-        options = [(f"{w.name} · {w.description}" if w.description else w.name, w.name)
-                   for w in self.config.workflows.values()]
+        workflows = [(w.name, w.name) for w in self.config.workflows.values()]
         with Horizontal(id="nm-body"):
             with Vertical(id="nm-left"):
-                yield Label("Workflow")
-                yield Select(options, value=options[0][1], allow_blank=False, id="nm-workflow")
-                yield Label("What should the agents do?")
-                yield TextArea(id="nm-request", soft_wrap=True)
-                with Horizontal(classes="nm-buttons"):
-                    yield Button("Draft mission  ctrl+g", id="nm-draft", variant="primary")
-                yield Static(id="nm-status")
-                yield Label("Options (edit the mission for you)")
-                yield MissionForm(id="nm-options")
+                with Vertical(id="nm-workflow-panel", classes="panel"):
+                    yield Select(workflows, value=workflows[0][1], allow_blank=False, compact=True, id="nm-workflow")
+                    yield Static(id="nm-workflow-about")
+                yield TextArea(id="nm-request", soft_wrap=True, compact=True, classes="panel",
+                               placeholder="Describe the mission in plain words: the goal, what the result "
+                                           "should contain, anything to avoid.")
+                yield MissionForm(id="nm-options", classes="panel")
             with Vertical(id="nm-right"):
-                yield Label("Mission (review and edit before launching)")
-                yield TextArea(id="nm-mission", soft_wrap=True, show_line_numbers=True)
-                yield Label("Models per role")
-                yield VerticalScroll(id="nm-models")
-                with Horizontal(classes="nm-buttons"):
-                    yield Button("Launch  ctrl+l", id="nm-launch", variant="success", disabled=True)
-        yield Footer()
+                yield TextArea(id="nm-mission", soft_wrap=True, show_line_numbers=True, compact=True, classes="panel",
+                               placeholder="The drafted mission appears here (ctrl+g). Edit anything before launching.")
+                yield VerticalScroll(id="nm-models", classes="panel")
+        with Horizontal(id="nm-actions"):
+            yield Static(id="nm-status")
+            yield Button("Draft  ctrl+g", id="nm-draft", compact=True, classes="action")
+            yield Button("Launch  ctrl+l", id="nm-launch", compact=True, classes="action go", disabled=True)
+        yield Footer(compact=True)
 
     def on_mount(self) -> None:
         if self.config is not None and self.config.workflows:
+            titles = {"#nm-workflow-panel": "1 · Workflow", "#nm-request": "2 · Request", "#nm-options": "3 · Options",
+                      "#nm-mission": "4 · Mission", "#nm-models": "5 · Models"}
+            for selector, text in titles.items():
+                self.query_one(selector).border_title = text
+            self.query_one("#nm-mission").border_subtitle = "JSON · the form edits it for you"
+            self.query_one("#nm-models").border_subtitle = "model · effort per role"
+            self._about(self.query_one("#nm-workflow", Select).value)
             self.query_one("#nm-request", TextArea).focus()
             self.set_interval(1, self._tick)
             self._describe(self.query_one("#nm-workflow", Select).value)
@@ -87,7 +95,12 @@ class NewMissionScreen(Screen):
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id == "nm-workflow":
+            self._about(event.value)
             self._describe(event.value)
+
+    def _about(self, workflow: str) -> None:
+        about = self.config.workflows[workflow].description if self.config else ""
+        self.query_one("#nm-workflow-about", Static).update(Text(about, style="dim"))
 
     @work(thread=True, exclusive=True, group="describe")
     def _describe(self, workflow: str) -> None:
@@ -105,6 +118,7 @@ class NewMissionScreen(Screen):
         self._form_for = workflow
         form = self.query_one(MissionForm)
         form.build(self._options[workflow])
+        self._show_models(self._options[workflow].get("models", {}))  # offered before any draft
         mission = self._mission()
         if mission is not None:
             self.call_after_refresh(form.load, mission)
@@ -174,7 +188,8 @@ class NewMissionScreen(Screen):
         form.apply(mission, form.touched | form.select_keys)  # what you chose before drafting wins
         self._set_mission(mission)
         form.load(mission)
-        self._show_models(models)
+        if not self.query(".nm-model-row"):  # keep models the user already picked
+            self._show_models(models)
         self.query_one("#nm-launch", Button).disabled = False
         self._status(f"Drafted in {seconds:.0f}s. Review it, pick models, then launch.", "green")
 
@@ -188,9 +203,10 @@ class NewMissionScreen(Screen):
             efforts = [(e, e) for e in dict.fromkeys([spec.get("effort", "high"), *self.config.efforts])]
             box.mount(Horizontal(
                 Label(role, classes="nm-role"),
-                Select(options, value=current, allow_blank=False, id=f"model-{role}", classes="nm-model"),
-                Select(efforts, value=spec.get("effort", "high"), allow_blank=False, id=f"effort-{role}",
-                       classes="nm-effort"),
+                Select(options, value=current, allow_blank=False, compact=True, id=f"model-{role}",
+                       classes="nm-model"),
+                Select(efforts, value=spec.get("effort", "high"), allow_blank=False, compact=True,
+                       id=f"effort-{role}", classes="nm-effort"),
                 classes="nm-model-row", name=role))
 
     # ------------------------------------------------------------ launch

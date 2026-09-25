@@ -13,6 +13,7 @@ from mission_control import fmt
 from mission_control.model import Run
 
 GROUPS = ("Running", "Today", "Earlier")
+NAME_WIDTH = 27  # fits the list's width next to the status icon
 ATTENTION = {"NEEDS_HUMAN_REVIEW", "STOP", "REVISE"}
 
 
@@ -31,7 +32,8 @@ def status_of(run: Run) -> str:
 def prompt(run: Run, today: datetime) -> Text:
     text = Text(no_wrap=True, overflow="ellipsis")
     text.append_text(fmt.status_icon(status_of(run)))
-    text.append(f" {run.mission}\n", style="bold")
+    name = run.mission if len(run.mission) <= NAME_WIDTH else run.mission[: NAME_WIDTH - 1] + "…"
+    text.append(f" {name}\n", style="bold")
     when = fmt.clock(run.started, "%H:%M" if group_of(run, today) != "Earlier" else "%b %d")
     meta = [run.workflow, when, fmt.money(run.cost_usd) if run.cost_usd else ""]  # the icon shows the result
     text.append("  " + " · ".join(m for m in meta if m), style="dim")

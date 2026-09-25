@@ -25,7 +25,8 @@ FAKE_DESCRIBE = textwrap.dedent("""
         {"value": "web", "label": "Web", "available": True, "note": ""},
         {"value": "yc", "label": "YC", "available": True, "note": ""},
         {"value": "lab", "label": "Lab", "available": False, "note": "not installed"}]}],
-        "numbers": [{"path": ["budget", "max_tasks"], "label": "max tasks", "integer": True, "min": 1, "max": 8}]}))
+        "numbers": [{"path": ["budget", "max_tasks"], "label": "max tasks", "integer": True, "min": 1, "max": 8}],
+        "models": {"worker": {"vendor": "codex", "model": "gpt", "effort": "high"}}}))
 """)
 FAKE_RUN = textwrap.dedent("""
     import json, os, sys, time
@@ -113,6 +114,8 @@ async def test_options_form_edits_the_mission(tmp_path):
         assert await wait_for(pilot, lambda: len(screen.query(Checkbox)) == 3)
         web, yc, lab = screen.query(Checkbox)
         assert lab.disabled and not web.disabled
+        assert await wait_for(pilot, lambda: len(screen.query(".nm-model-row")) == 1)  # models before any draft
+        assert all(w.region.height > 0 for w in screen.query(".nm-number-row"))
 
         yc.value = True  # chosen before any draft: must end up in the draft
         from textual.widgets import Select

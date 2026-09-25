@@ -7,12 +7,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Grid, Horizontal, VerticalScroll
 from textual.message import Message
 from textual.validation import Number
 from textual.widgets import Checkbox, Input, Label, Select
 
 Key = tuple[str, ...]  # ("tools",) for a choice group, ("budget", "max_tasks") for a number
+
+
+class Tick(Checkbox):
+    """A checkbox that shows a tick instead of an X."""
+
+    BUTTON_INNER = "✓"
 
 
 class MissionForm(VerticalScroll):
@@ -40,7 +46,7 @@ class MissionForm(VerticalScroll):
                 continue
             default = select.get("default") if select.get("default") in {v for _, v in choices} else choices[0][1]
             self.mount(Label(select["label"], classes="nm-form-label"))
-            widget = Select(choices, value=default, allow_blank=False, classes="nm-select")
+            widget = Select(choices, value=default, allow_blank=False, compact=True, classes="nm-select")
             self._selects[(select["field"],)] = widget
             self.mount(widget)
         for choice in options.get("choices", []):
@@ -49,7 +55,7 @@ class MissionForm(VerticalScroll):
             boxes = []
             for option in choice["options"]:
                 label = option["label"] + ("" if option["available"] else "  (unavailable)")
-                box = Checkbox(label, value=False, disabled=not option["available"], classes="nm-check")
+                box = Tick(label, value=False, disabled=not option["available"], compact=True, classes="nm-check")
                 if option.get("note"):
                     box.tooltip = option["note"]
                 boxes.append((option["value"], box))
@@ -57,13 +63,15 @@ class MissionForm(VerticalScroll):
             self._choices[key] = boxes
         if options.get("numbers"):
             self.mount(Label("Budget", classes="nm-form-label"))
+            grid = Grid(classes="nm-numbers")
+            self.mount(grid)
         for number in options.get("numbers", []):
             key = tuple(number["path"])
-            field = Input(type="integer" if number["integer"] else "number", classes="nm-number",
+            field = Input(type="integer" if number["integer"] else "number", compact=True, classes="nm-number",
                           validators=[Number(minimum=number.get("min"), maximum=number.get("max"))],
                           placeholder=_limits(number))
             self._numbers[key] = (field, number)
-            self.mount(Horizontal(Label(number["label"], classes="nm-number-label"), field, classes="nm-number-row"))
+            grid.mount(Horizontal(Label(number["label"], classes="nm-number-label"), field, classes="nm-number-row"))
 
     # ------------------------------------------------------------ mission <-> form
 

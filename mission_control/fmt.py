@@ -9,16 +9,17 @@ from typing import Any
 from rich.text import Text
 
 BRIEF = 70
-ACCENT = "#E8663D"  # follows the active theme; set by the app
+ACCENT = "#F0795B"  # follows the active theme; set by the app
+SECONDARY = "#B4A7F5"  # tool names
 MUTED = "grey35"
 STATUS = {"running": ("●", "yellow"), "done": ("✓", "green"), "failed": ("✗", "red"),
           "crashed": ("✗", "red"), "attention": ("!", "accent"), "paused": ("‖", "yellow"), "stopped": ("■", "dim"),
           "unknown": ("○", "dim")}
 
 
-def use_theme(accent: str, dark: bool) -> None:
-    global ACCENT, MUTED
-    ACCENT, MUTED = accent, "grey35" if dark else "grey70"
+def use_theme(accent: str, secondary: str, dark: bool) -> None:
+    global ACCENT, SECONDARY, MUTED
+    ACCENT, SECONDARY, MUTED = accent, secondary, "grey35" if dark else "grey70"
 
 
 def _status(status: str) -> tuple[str, str]:

@@ -16,7 +16,7 @@ from mission_control.model import Run
 from mission_control.runlist import RunList
 from mission_control.screens.agents import AgentsScreen, SessionScreen
 from mission_control.screens.base import View
-from mission_control.screens.dialogs import AskText, Confirm
+from mission_control.screens.dialogs import AskText, Confirm, KeysScreen
 from mission_control.screens.home import HomeScreen
 from mission_control.screens.live import LiveScreen
 from mission_control.screens.models import ModelsScreen
@@ -38,20 +38,21 @@ class MissionControl(App):
     }
     DEFAULT_MODE = "home"  # on_mount moves to the overview when a run is live at start
     BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("n", "new_mission", "New"),
         Binding("o", "open('overview')", "Overview"),
-        Binding("r", "focus_runs", "Runs"),
-        Binding("b", "toggle_run_list", "List"),
         Binding("l", "open('live')", "Live"),
         Binding("a", "open('agents')", "Agents"),
         Binding("p", "open('plugins')", "Plugins"),
-        Binding("m", "open('models')", "Models"),
         Binding("f", "open('results')", "Files"),
-        Binding("t", "next_theme", "Theme"),
-        Binding("n", "new_mission", "New mission"),
-        Binding("P", "pause", "Pause/resume"),
+        Binding("m", "open('models')", "Models", show=False),
+        Binding("r", "focus_runs", "Runs", show=False),
+        Binding("b", "toggle_run_list", "Hide list", show=False),
+        Binding("t", "next_theme", "Theme", show=False),
+        Binding("P", "pause", "Pause"),  # P, X, M only show while the selected run is live (check_action)
         Binding("X", "stop", "Stop"),
-        Binding("M", "note", "Note to agents"),
-        Binding("escape", "back", "Back"),
+        Binding("M", "note", "Note"),
+        Binding("question_mark", "help", "Keys"),
+        Binding("escape", "back", "Back", show=False),
         Binding("q", "quit", "Quit"),
     ]
 
@@ -86,7 +87,7 @@ class MissionControl(App):
     def watch_theme(self, name: str) -> None:
         theme = themes.BY_NAME.get(name)
         if theme is not None:
-            fmt.use_theme(theme.accent or fmt.ACCENT, theme.dark)
+            fmt.use_theme(theme.accent or fmt.ACCENT, theme.secondary or fmt.SECONDARY, theme.dark)
         if isinstance(self.screen, View):
             self.screen.refresh_view([])
 
@@ -102,6 +103,7 @@ class MissionControl(App):
         if not isinstance(self.screen, View):
             return
         if changed:
+            self.refresh_bindings()
             self.screen.refresh_view(changed.get(id(self.selected), []) if self.selected else [])
         elif self.selected is not None and self.selected.status == "running":
             self.screen.tick()  # nothing new: only the clock moved
@@ -131,6 +133,15 @@ class MissionControl(App):
                 self.launches.remove(pending)
                 self.notify(f"{pending.mission['name']} stopped before starting (exit {pending.process.returncode}):\n"
                             f"{launch.log_tail(pending.log, 400)}", severity="error", timeout=15)
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        """Hide the steering keys unless the selected run is live."""
+        if action in ("pause", "stop", "note"):
+            return self.selected is not None and self.selected.status in ("running", "paused")
+        return True
+
+    def action_help(self) -> None:
+        self.push_screen(KeysScreen())
 
     # ------------------------------------------------------------ steering (see control.py)
 
@@ -176,6 +187,7 @@ class MissionControl(App):
     def select_run(self, run: Run) -> None:
         """Point every screen at `run`; from home (or a pushed screen), go to its overview."""
         self.selected = run
+        self.refresh_bindings()  # the steering keys depend on the selected run
         if self.current_mode == "home" or not isinstance(self.screen, View):
             self.switch_mode("overview")  # the screen redraws itself when it mounts or resumes
         elif isinstance(self.screen, View):

@@ -81,7 +81,8 @@ runs first, then today's, then earlier ones. Pick one and every screen shows it;
 jumps to the list, `b` hides it.
 
 One screen per question, one key each. `esc` goes back (to Home from the overview), `q`
-quits, and the bar at the bottom always lists the keys that work where you are.
+quits, and `?` lists every key. The bar at the bottom shows the main ones; the steering
+keys appear there only while the selected run is live.
 
 | Key | Screen | Answers |
 |---|---|---|

@@ -184,7 +184,7 @@ def label(item: Item) -> Text:
         text.append(f"  {fmt.duration(item.seconds)}" if item.done else "")
     elif isinstance(item, Call):
         text.append_text(fmt.status_icon(item.status))
-        text.append(f" {item.tool}", style="bold")
+        text.append(f" {item.tool}", style=f"bold {fmt.SECONDARY}")
         text.append(f"  {fmt.brief(item.input)}", style="dim")
         text.append(f"  {fmt.duration(item.seconds)}" if item.done else "")
     elif item.name == "message":
@@ -321,7 +321,7 @@ class FullText(ModalScreen):
 
     def compose(self):
         yield TextArea(self._text, read_only=True, soft_wrap=True, show_line_numbers=True, id="full-text")
-        yield Footer()
+        yield Footer(compact=True)
 
 
 def facts(**values: Any) -> Table:
