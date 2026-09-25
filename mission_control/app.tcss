@@ -242,7 +242,7 @@ FullText {
 }
 
 #nm-request {
-    height: 1fr;
+    height: 8;
 }
 
 #nm-mission {
@@ -326,4 +326,42 @@ Confirm, AskText {
 
 .dialog Input {
     margin-top: 1;
+}
+
+/* ---------------------------------------------------------------- new mission: options form */
+
+#nm-options {
+    height: 1fr;
+    background: $surface;
+    padding: 0 1;
+}
+
+.nm-form-label {
+    color: $text-muted;
+    text-style: bold;
+    margin-top: 1;
+}
+
+.nm-check {
+    background: $surface;
+    border: none;
+    padding: 0;
+    height: 1;
+}
+
+.nm-number-row {
+    height: 3;
+}
+
+.nm-number-label {
+    width: 22;
+    margin-top: 1;
+}
+
+.nm-number {
+    width: 16;
+}
+
+.nm-select {
+    width: 1fr;
 }

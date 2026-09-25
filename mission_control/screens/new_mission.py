@@ -15,7 +15,8 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Label, Select, Static, TextArea
 
 from mission_control import fmt
-from mission_control.launch import Config, LaunchError, draft
+from mission_control.launch import Config, LaunchError, describe, draft
+from mission_control.screens.mission_form import MissionForm
 
 if TYPE_CHECKING:
     from mission_control.app import MissionControl
@@ -45,6 +46,8 @@ class NewMissionScreen(Screen):
         self.config = config
         self.problem = problem
         self._drafting_since: float | None = None
+        self._options: dict[str, dict[str, Any]] = {}  # workflow -> described options
+        self._form_for: str | None = None  # the workflow the form was built for
 
     def compose(self) -> ComposeResult:
         yield Static(Text("▲ New mission", style=f"bold {fmt.ACCENT}"), id="nm-title")
@@ -63,6 +66,8 @@ class NewMissionScreen(Screen):
                 with Horizontal(classes="nm-buttons"):
                     yield Button("Draft mission  ctrl+g", id="nm-draft", variant="primary")
                 yield Static(id="nm-status")
+                yield Label("Options (edit the mission for you)")
+                yield MissionForm(id="nm-options")
             with Vertical(id="nm-right"):
                 yield Label("Mission (review and edit before launching)")
                 yield TextArea(id="nm-mission", soft_wrap=True, show_line_numbers=True)
@@ -76,6 +81,51 @@ class NewMissionScreen(Screen):
         if self.config is not None and self.config.workflows:
             self.query_one("#nm-request", TextArea).focus()
             self.set_interval(1, self._tick)
+            self._describe(self.query_one("#nm-workflow", Select).value)
+
+    # ------------------------------------------------------------ options form
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id == "nm-workflow":
+            self._describe(event.value)
+
+    @work(thread=True, exclusive=True, group="describe")
+    def _describe(self, workflow: str) -> None:
+        if workflow not in self._options:
+            try:
+                self._options[workflow] = describe(self.config, workflow)
+            except LaunchError as exc:
+                self.app.call_from_thread(self._status, str(exc), "red")
+                self._options[workflow] = {"selects": [], "choices": [], "numbers": []}
+        self.app.call_from_thread(self._show_options, workflow)
+
+    def _show_options(self, workflow: str) -> None:
+        if workflow == self._form_for:
+            return
+        self._form_for = workflow
+        form = self.query_one(MissionForm)
+        form.build(self._options[workflow])
+        mission = self._mission()
+        if mission is not None:
+            self.call_after_refresh(form.load, mission)
+
+    def on_mission_form_changed(self, event: MissionForm.Changed) -> None:
+        mission = self._mission()
+        if mission is None:
+            return  # no draft yet: the choice is remembered and applied to the draft
+        self.query_one(MissionForm).apply(mission, {event.key})
+        self._set_mission(mission)
+
+    def _mission(self) -> dict[str, Any] | None:
+        text = self.query_one("#nm-mission", TextArea).text.strip()
+        try:
+            value = json.loads(text) if text else None
+        except json.JSONDecodeError:
+            return None
+        return value if isinstance(value, dict) else None
+
+    def _set_mission(self, mission: dict[str, Any]) -> None:
+        self.query_one("#nm-mission", TextArea).load_text(json.dumps(mission, indent=2, ensure_ascii=False))
 
     # ------------------------------------------------------------ draft
 
@@ -94,12 +144,13 @@ class NewMissionScreen(Screen):
             return
         self._drafting_since = time.monotonic()
         self.query_one("#nm-draft", Button).disabled = True
-        self._draft(self.query_one("#nm-workflow", Select).value, request)
+        context = self.query_one(MissionForm).value(("context",))
+        self._draft(self.query_one("#nm-workflow", Select).value, request, context)
 
     @work(thread=True, exclusive=True, group="draft")
-    def _draft(self, workflow: str, request: str) -> None:
+    def _draft(self, workflow: str, request: str, context: str | None) -> None:
         try:
-            mission = draft(self.config, workflow, request)
+            mission = draft(self.config, workflow, request, context)
         except (LaunchError, ValueError) as exc:
             self.app.call_from_thread(self._draft_failed, str(exc))
         else:
@@ -119,7 +170,10 @@ class NewMissionScreen(Screen):
         self._drafting_since = None
         self.query_one("#nm-draft", Button).disabled = False
         models = mission.pop("models", {}) or {}
-        self.query_one("#nm-mission", TextArea).load_text(json.dumps(mission, indent=2, ensure_ascii=False))
+        form = self.query_one(MissionForm)
+        form.apply(mission, form.touched | form.select_keys)  # what you chose before drafting wins
+        self._set_mission(mission)
+        form.load(mission)
         self._show_models(models)
         self.query_one("#nm-launch", Button).disabled = False
         self._status(f"Drafted in {seconds:.0f}s. Review it, pick models, then launch.", "green")

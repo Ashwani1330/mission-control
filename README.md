@@ -92,7 +92,7 @@ quits, and the bar at the bottom always lists the keys that work where you are.
 | `p` | **Plugins** | Which tools were used, and how? Calls grouped by plugin (yc, web, shell, skills, files) and by tool. |
 | `m` | **Models** | Which model did each role run on, declared and actual? |
 | `f` | **Files** | What did the run produce? The run folder as a tree; Markdown rendered, JSON pretty-printed; `e` opens a file in your editor. |
-| `n` | **New mission** | Start one: write a request, `ctrl+g` drafts the mission, edit it, pick a model per role, `ctrl+l` launches. |
+| `n` | **New mission** | Start one: write a request, pick the context, tools and budget in the form, `ctrl+g` drafts the mission, pick a model per role, `ctrl+l` launches. |
 
 Steering a running mission: `P` pause / resume, `X` stop (asks first), `M` send a note to
 the next agent step. `t` switches the colour theme (dark, dusk, light; remembered).
@@ -167,7 +167,15 @@ name = "research"
 description = "Find and shortlist companies for a goal"
 draft = ["python3", "-m", "workflows.research.runner", "--draft", "{request}", "--out", "{mission}"]
 run = ["python3", "-m", "workflows.research.runner", "{mission}"]
+describe = ["python3", "-m", "workflows.research.runner", "--describe"]
 ```
+
+Add a `describe` command and the New mission screen shows a form instead of making you
+edit JSON: dropdowns (e.g. which context file the agents get), checkboxes for lists of
+fixed choices (e.g. tools, greyed out when not installed on this machine), and number
+inputs with limits for budgets. It prints JSON like
+`{"selects": [...], "choices": [...], "numbers": [...]}`; `{context}` in the draft command
+becomes the chosen context. The mission JSON stays editable for everything else.
 
 Mission Control writes the approved mission (with a `"models": {role: {vendor, model,
 effort}}` map) to `.mission-control/launches/`, starts `run` detached so it outlives the

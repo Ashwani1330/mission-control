@@ -30,6 +30,7 @@ class Workflow:
     description: str
     run: list[str]
     draft: list[str] | None = None
+    describe: list[str] | None = None  # prints the mission options (choices, numbers) as JSON
 
 
 @dataclass(frozen=True)
@@ -76,7 +77,8 @@ def load_config(path: Path) -> Config:
         if not isinstance(entry.get("name"), str) or not _command(entry.get("run")):
             raise LaunchError(f"{path}: every [[workflow]] needs a name and a run command (a list of strings)")
         workflows[entry["name"]] = Workflow(entry["name"], str(entry.get("description", "")), list(entry["run"]),
-                                            list(entry["draft"]) if _command(entry.get("draft")) else None)
+                                            list(entry["draft"]) if _command(entry.get("draft")) else None,
+                                            list(entry["describe"]) if _command(entry.get("describe")) else None)
     models = raw.get("models", {})
     return Config(path, workflows, [str(m) for m in models.get("choices", [])],
                   [str(e) for e in models.get("efforts", ["low", "medium", "high"])])
@@ -86,7 +88,7 @@ def _command(value: Any) -> bool:
     return isinstance(value, list) and bool(value) and all(isinstance(part, str) for part in value)
 
 
-def fill(command: list[str], **values: Path) -> list[str]:
+def fill(command: list[str], **values: Path | str) -> list[str]:
     return [part.format(**{k: str(v) for k, v in values.items()}) for part in command]
 
 
@@ -98,8 +100,9 @@ def _stamp() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
-def draft(config: Config, workflow: str, request: str) -> dict[str, Any]:
-    """Run the workflow's draft command on `request` (blocking) and return the mission it wrote."""
+def draft(config: Config, workflow: str, request: str, context: str | None = None) -> dict[str, Any]:
+    """Run the workflow's draft command on `request` (blocking) and return the mission it wrote.
+    `{context}` in the command becomes the chosen context; commands without it ignore it."""
     flow = config.workflows[workflow]
     if flow.draft is None:
         raise LaunchError(f"workflow {workflow!r} has no draft command; write the mission JSON yourself")
@@ -109,13 +112,35 @@ def draft(config: Config, workflow: str, request: str) -> dict[str, Any]:
     request_file, mission_file = folder / f"{workflow}-{stamp}.request.txt", folder / f"{workflow}-{stamp}.json"
     request_file.write_text(request)
     try:
-        done = subprocess.run(fill(flow.draft, request=request_file, mission=mission_file), cwd=config.root,
+        command = fill(flow.draft, request=request_file, mission=mission_file, context=context or "")
+        if not context and "--context" in command:  # no choice offered: let the workflow use its default
+            index = command.index("--context")
+            command = command[:index] + command[index + 2:]
+        done = subprocess.run(command, cwd=config.root,
                               capture_output=True, text=True, timeout=DRAFT_TIMEOUT, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise LaunchError(f"draft command failed: {exc}") from exc
     if done.returncode or not mission_file.exists():
         raise LaunchError((done.stderr or done.stdout).strip()[-600:] or f"draft exited {done.returncode}")
     return json.loads(mission_file.read_text())
+
+
+def describe(config: Config, workflow: str) -> dict[str, Any]:
+    """The workflow's mission options for the form: {"selects", "choices", "numbers"}; empty if none."""
+    flow = config.workflows[workflow]
+    if flow.describe is None:
+        return {"selects": [], "choices": [], "numbers": []}
+    try:
+        done = subprocess.run(flow.describe, cwd=config.root, capture_output=True, text=True, timeout=60, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise LaunchError(f"describe for {workflow} failed: {exc}") from exc
+    try:
+        options = json.loads(done.stdout) if done.returncode == 0 else None
+    except json.JSONDecodeError:
+        options = None
+    if not isinstance(options, dict):
+        raise LaunchError(f"describe for {workflow} failed: {(done.stderr or done.stdout).strip()[-300:]}")
+    return {key: options.get(key, []) for key in ("selects", "choices", "numbers")}
 
 
 def launch(config: Config, workflow: str, mission: dict[str, Any]) -> Launch:
