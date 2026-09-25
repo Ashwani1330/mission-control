@@ -96,7 +96,8 @@ keys appear there only while the selected run is live.
 | `n` | **New mission** | Start one: write a request, pick the context, tools and budget in the form, `ctrl+g` drafts the mission, pick a model per role, `ctrl+l` launches. |
 
 Steering a running mission: `P` pause / resume, `X` stop (asks first), `M` send a note to
-the next agent step. `t` switches the colour theme (dark, dusk, light; remembered).
+the next agent step. Runs that stop for your approval (e.g. a coding plan) sit under
+**Needs you** in the run list; review them under `f`, then `A` approves and continues. `t` switches the colour theme (dark, dusk, light; remembered).
 
 In any detail pane, `v` opens the full text (prompts and outputs can be large; the
 preview shows the first lines).
@@ -169,6 +170,8 @@ description = "Find and shortlist companies for a goal"
 draft = ["python3", "-m", "workflows.research.runner", "--draft", "{request}", "--out", "{mission}"]
 run = ["python3", "-m", "workflows.research.runner", "{mission}"]
 describe = ["python3", "-m", "workflows.research.runner", "--describe"]
+# optional: continue a run that stopped for approval (its trace ends with verdict AWAITING_APPROVAL)
+approve = ["python3", "-m", "workflows.research.runner", "run", "{run_dir}"]
 ```
 
 Add a `describe` command and the New mission screen shows a form instead of making you

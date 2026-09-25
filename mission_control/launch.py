@@ -31,6 +31,7 @@ class Workflow:
     run: list[str]
     draft: list[str] | None = None
     describe: list[str] | None = None  # prints the mission options (choices, numbers) as JSON
+    approve: list[str] | None = None   # continues a run that stopped for approval ({run_dir})
 
 
 @dataclass(frozen=True)
@@ -78,7 +79,8 @@ def load_config(path: Path) -> Config:
             raise LaunchError(f"{path}: every [[workflow]] needs a name and a run command (a list of strings)")
         workflows[entry["name"]] = Workflow(entry["name"], str(entry.get("description", "")), list(entry["run"]),
                                             list(entry["draft"]) if _command(entry.get("draft")) else None,
-                                            list(entry["describe"]) if _command(entry.get("describe")) else None)
+                                            list(entry["describe"]) if _command(entry.get("describe")) else None,
+                                            list(entry["approve"]) if _command(entry.get("approve")) else None)
     models = raw.get("models", {})
     return Config(path, workflows, [str(m) for m in models.get("choices", [])],
                   [str(e) for e in models.get("efforts", ["low", "medium", "high"])])
@@ -159,6 +161,23 @@ def launch(config: Config, workflow: str, mission: dict[str, Any]) -> Launch:
         except OSError as exc:
             raise LaunchError(f"could not start {flow.run[0]}: {exc}") from exc
     return Launch(workflow, mission, process, log, time.time())
+
+
+def approve(config: Config, workflow: str, run_dir: Path) -> tuple[subprocess.Popen, Path]:
+    """Start the workflow's approve command on a run that is waiting for approval (detached)."""
+    flow = config.workflows[workflow]
+    if flow.approve is None:
+        raise LaunchError(f"workflow {workflow!r} has no approve command")
+    folder = config.state / "launches"
+    folder.mkdir(parents=True, exist_ok=True)
+    log = folder / f"{run_dir.name}-approve-{_stamp()}.log"
+    with log.open("w") as out:
+        try:
+            process = subprocess.Popen(fill(flow.approve, run_dir=run_dir), cwd=config.root, stdout=out,
+                                       stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+        except OSError as exc:
+            raise LaunchError(f"could not start {flow.approve[0]}: {exc}") from exc
+    return process, log
 
 
 def log_tail(path: Path, chars: int = 600) -> str:

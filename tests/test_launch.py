@@ -136,3 +136,35 @@ async def test_options_form_edits_the_mission(tmp_path):
         tasks.value = "99"  # out of range: ignored
         await pilot.pause(0.2)
         assert json.loads(screen.query_one("#nm-mission", TextArea).text)["budget"]["max_tasks"] == 5
+
+
+async def test_approve_continues_a_run_waiting_for_approval(tmp_path):
+    from conftest import ev, write
+
+    from mission_control.screens.dialogs import Confirm
+    runs = make_config(tmp_path)
+    (tmp_path / "approve.py").write_text(textwrap.dedent("""
+        import json, os, sys, time
+        from datetime import datetime, timezone
+        with open(os.path.join(sys.argv[1], "events.jsonl"), "a") as f:
+            f.write(json.dumps({"time": datetime.now(timezone.utc).isoformat(), "event": "run.started",
+                                "pid": os.getpid(), "phase": "run"}) + "\\n")
+        time.sleep(3)
+    """))
+    config = (tmp_path / "mission-control.toml").read_text()
+    (tmp_path / "mission-control.toml").write_text(
+        config.replace('name = "demo"', f'name = "demo"\napprove = ["{sys.executable}", "approve.py", "{{run_dir}}"]'))
+    trace = runs / "demo" / "plan-20260925T100000Z" / "events.jsonl"
+    write(trace, ev(0, "run.started", pid=1, phase="plan"),
+          ev(5, "run.completed", phase="plan", verdict="AWAITING_APPROVAL"))
+
+    app = MissionControl(runs)
+    async with app.run_test(size=(180, 45)) as pilot:
+        await pilot.press("r", "down", "down", "enter")  # the "Needs you" group, then the run
+        await pilot.pause()
+        assert app.selected is not None and app.selected.verdict == "AWAITING_APPROVAL"
+        await pilot.press("A")
+        await pilot.pause()
+        assert isinstance(app.screen, Confirm)
+        await pilot.press("y")
+        assert await wait_for(pilot, lambda: (app.poll(), app.selected.status == "running")[1])

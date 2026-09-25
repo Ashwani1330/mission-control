@@ -68,6 +68,8 @@ class RunHeader(Vertical):
         if requested in ("paused", "stopped"):  # asked for, but the runner is still inside a step
             label = "PAUSING" if requested == "paused" else "STOPPING"
             status.append_text(fmt.status_text("paused", f"{label} · after the current step"))
+        elif run.status == "done" and run.verdict == "AWAITING_APPROVAL":
+            status.append_text(fmt.status_text("awaiting", "AWAITING APPROVAL · A to approve"))
         else:
             status.append_text(fmt.status_text(run.status, state.upper()))
         status.append(f"   {run.workflow} / {run.mission}   ", style="bold")

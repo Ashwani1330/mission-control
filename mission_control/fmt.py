@@ -14,6 +14,7 @@ SECONDARY = "#B4A7F5"  # tool names
 MUTED = "grey35"
 STATUS = {"running": ("●", "yellow"), "done": ("✓", "green"), "failed": ("✗", "red"),
           "crashed": ("✗", "red"), "attention": ("!", "accent"), "paused": ("‖", "yellow"), "stopped": ("■", "dim"),
+          "awaiting": ("◆", "accent"),
           "unknown": ("○", "dim")}
 
 

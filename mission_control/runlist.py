@@ -12,7 +12,8 @@ from textual.widgets.option_list import Option
 from mission_control import fmt
 from mission_control.model import Run
 
-GROUPS = ("Running", "Today", "Earlier")
+GROUPS = ("Running", "Needs you", "Today", "Earlier")
+AWAITING = "AWAITING_APPROVAL"
 NAME_WIDTH = 27  # fits the list's width next to the status icon
 ATTENTION = {"NEEDS_HUMAN_REVIEW", "STOP", "REVISE"}
 
@@ -20,12 +21,16 @@ ATTENTION = {"NEEDS_HUMAN_REVIEW", "STOP", "REVISE"}
 def group_of(run: Run, today: datetime) -> str:
     if run.status in ("running", "paused"):
         return "Running"
+    if run.status == "done" and run.verdict == AWAITING:
+        return "Needs you"
     if run.started and run.started.astimezone().date() == today.date():
         return "Today"
     return "Earlier"
 
 
 def status_of(run: Run) -> str:
+    if run.status == "done" and run.verdict == AWAITING:
+        return "awaiting"
     return "attention" if run.status == "done" and run.verdict in ATTENTION else run.status
 
 

@@ -48,6 +48,7 @@ class MissionControl(App):
         Binding("r", "focus_runs", "Runs", show=False),
         Binding("b", "toggle_run_list", "Hide list", show=False),
         Binding("t", "next_theme", "Theme", show=False),
+        Binding("A", "approve", "Approve"),  # only for runs waiting for approval (check_action)
         Binding("P", "pause", "Pause"),  # P, X, M only show while the selected run is live (check_action)
         Binding("X", "stop", "Stop"),
         Binding("M", "note", "Note"),
@@ -67,6 +68,7 @@ class MissionControl(App):
             except launch.LaunchError as exc:
                 self.config_problem = str(exc)
         self.launches: list[launch.Launch] = []
+        self.approvals: list[tuple[Run, object, Path]] = []  # (run, process, log) until the run is live
         self.store = RunStore(runs_dir)
         self.store.poll()
         # Open on a live run if there is one; otherwise on a clean home screen.
@@ -121,6 +123,13 @@ class MissionControl(App):
 
     def _follow_launches(self) -> None:
         """Open a launched mission's run as soon as it appears; report runners that die first."""
+        for run, process, log in list(self.approvals):
+            if run.status in ("running", "paused"):
+                self.approvals.remove((run, process, log))
+            elif process.poll() is not None and process.returncode:
+                self.approvals.remove((run, process, log))
+                self.notify(f"Approving {run.mission} failed (exit {process.returncode}):\n"
+                            f"{launch.log_tail(log, 400)}", severity="error", timeout=15)
         for pending in list(self.launches):
             run = next((r for r in self.store.runs.values()
                         if r.mission == pending.slug and r.started and r.started.timestamp() >= pending.started - 5),
@@ -138,7 +147,31 @@ class MissionControl(App):
         """Hide the steering keys unless the selected run is live."""
         if action in ("pause", "stop", "note"):
             return self.selected is not None and self.selected.status in ("running", "paused")
+        if action == "approve":
+            return self._approvable(self.selected)
         return True
+
+    def _approvable(self, run: Run | None) -> bool:
+        flow = self.config.workflows.get(run.workflow) if self.config and run else None
+        return bool(run and flow and flow.approve and run.status == "done" and run.verdict == "AWAITING_APPROVAL")
+
+    def action_approve(self) -> None:
+        run = self.selected
+        if not self._approvable(run):
+            return
+
+        def go(confirmed: bool | None) -> None:
+            if not confirmed:
+                return
+            try:
+                process, log = launch.approve(self.config, run.workflow, run.path)
+            except launch.LaunchError as exc:
+                self.notify(str(exc), severity="error", timeout=8)
+                return
+            self.approvals.append((run, process, log))
+            self.notify(f"Approved: building {run.mission}…", timeout=4)
+        self.push_screen(Confirm(f"Approve the plan for {run.mission} and start building?\n"
+                                 "Check features.json and validation-contract.md under f first."), go)
 
     def action_help(self) -> None:
         self.push_screen(KeysScreen())

@@ -51,7 +51,8 @@ class AskText(ModalScreen[str | None]):
 
 
 KEYS = [
-    ("Missions", [("n", "new mission"), ("P", "pause / resume the selected run"), ("X", "stop it"),
+    ("Missions", [("n", "new mission"), ("A", "approve a plan that waits for you (coding)"),
+                  ("P", "pause / resume the selected run"), ("X", "stop it"),
                   ("M", "send a note to its next agent step")]),
     ("Screens", [("o", "overview"), ("l", "live agent tiles"), ("a", "agents (enter: session)"),
                  ("p", "plugins and tool calls"), ("m", "models per role"), ("f", "files the run produced")]),
