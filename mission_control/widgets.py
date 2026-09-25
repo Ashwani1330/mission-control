@@ -1,9 +1,9 @@
-"""The three panes: run list, timeline tree, detail view. They render; the app wires them."""
+"""Building blocks the screens share: run header, table syncing, timeline tree, detail view."""
 
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -15,78 +15,89 @@ from textual.containers import VerticalScroll
 from textual.widgets import DataTable, Static, Tree
 from textual.widgets.tree import TreeNode
 
+from mission_control import fmt
 from mission_control.model import Call, Item, Run, Step, Update
 
-STATUS = {"running": ("⟳", "yellow"), "done": ("✓", "green"), "failed": ("✗", "red"),
-          "crashed": ("✗", "red"), "unknown": ("?", "dim")}
-VERDICT_OK = {"PASS", "AWAITING_APPROVAL", None}
-BRIEF = 70
+Row = tuple[str, Sequence[Any]]  # (row key, cells)
 
 
-# ------------------------------------------------------------------ run list
+# ------------------------------------------------------------------ header
 
-class RunTable(DataTable):
-    COLUMNS = ("", "workflow", "mission", "started", "took", "cost")
+class RunHeader(Static):
+    """One line: which run, its state, and its running totals."""
 
-    def on_mount(self) -> None:
-        self.cursor_type = "row"
-        self.zebra_stripes = True
-        for column in self.COLUMNS:
-            self.add_column(column, key=column)
-        self._shown: dict[str, tuple[Any, ...]] = {}
-        self._filled = False  # the first fill starts on the newest run; later ones keep the selection
+    def show(self, run: Run | None) -> None:
+        if run is None:
+            self.update(Text("No runs yet.", style="dim"))
+            return
+        tokens = run.tokens
+        text = Text()
+        text.append("Mission Control", style="bold magenta")
+        text.append(f"  {run.workflow} / {run.mission}   ", style="dim")
+        state = run.verdict if run.status == "done" and run.verdict else run.status
+        text.append_text(fmt.status_text(run.status, state.upper()))
+        text.append("   TIME ", style="dim")
+        text.append(fmt.duration(run.seconds))
+        for name, key in (("in", "input_tokens"), ("cached", "cached_input_tokens"), ("out", "output_tokens")):
+            text.append(f" · {name} ", style="dim")
+            text.append(fmt.count(tokens[key]))
+        text.append(" · ", style="dim")
+        text.append(fmt.money(tokens["cost_usd"]))
+        self.update(text)
 
-    def show(self, runs: list[Run]) -> None:
-        """Add new runs and patch changed cells, keeping the newest run on top."""
-        added = False
-        for run in runs:
-            key = str(run.path)
-            cells = self._cells(run)
-            if key not in self._shown:
-                self.add_row(*cells, key=key)
-                added = True
-            elif cells != self._shown[key]:
-                for column, old, value in zip(self.COLUMNS, self._shown[key], cells, strict=True):
-                    if value != old:
-                        self.update_cell(key, column, value)
-            self._shown[key] = cells
-        if added:
-            first_fill = not self._filled
-            selected = self.coordinate_to_cell_key(self.cursor_coordinate).row_key
-            self.sort("started", reverse=True)  # "MM-DD HH:MM" sorts correctly within a year
-            self.move_cursor(row=0 if first_fill else self.get_row_index(selected))
-            self._filled = True
 
-    @property
-    def current_key(self) -> str | None:
-        if not self.row_count:
-            return None
-        return self.coordinate_to_cell_key(self.cursor_coordinate).row_key.value
+# ------------------------------------------------------------------ tables
 
-    @staticmethod
-    def _cells(run: Run) -> tuple[Any, ...]:
-        icon, style = STATUS[run.status]
-        if run.status == "done" and run.verdict not in VERDICT_OK:
-            icon, style = "!", "magenta"
-        return (Text(icon, style=style), run.workflow, run.mission, _clock(run.started, "%m-%d %H:%M"),
-                _duration(run.seconds), f"${run.cost_usd:.2f}" if run.cost_usd else "")
+def make_table(*columns: str, id: str | None = None) -> DataTable:
+    table = DataTable(id=id, cursor_type="row", zebra_stripes=True)
+    for column in columns:
+        table.add_column(column, key=column)
+    return table
+
+
+def sync_table(table: DataTable, rows: list[Row]) -> None:
+    """Make `table` show `rows` in order, touching only what changed and keeping the cursor's row."""
+    keys = [key for key, _ in rows]
+    if keys != [row.value for row in table.rows]:
+        selected = cursor_key(table)
+        table.clear()
+        for key, cells in rows:
+            table.add_row(*cells, key=key)
+        if selected in keys:
+            table.move_cursor(row=keys.index(selected), animate=False)
+        return
+    columns = list(table.columns)
+    for key, cells in rows:
+        for column, value in zip(columns, cells, strict=True):
+            if table.get_cell(key, column) != value:
+                table.update_cell(key, column, value)
+
+
+def cursor_key(table: DataTable) -> str | None:
+    if not table.row_count:
+        return None
+    return table.coordinate_to_cell_key(table.cursor_coordinate).row_key.value
 
 
 # ------------------------------------------------------------------ timeline
 
 class Timeline(Tree[Item]):
-    """A run's steps, tool calls and events, patched in place as updates arrive."""
+    """Steps, tool calls and events as a tree, patched in place as updates arrive.
+
+    `scope` is the step whose items sit at the top level (None: the whole run)."""
 
     def __init__(self, **kwargs: Any):
         super().__init__("run", **kwargs)
         self.show_root = False
         self.follow = True
+        self.scope: Step | None = None
         self._by_item: dict[int, TreeNode[Item]] = {}
 
-    def show(self, run: Run) -> None:
+    def show(self, entries: list[Item], scope: Step | None = None) -> None:
         self.clear()
+        self.scope = scope
         self._by_item = {}
-        for entry in run.entries:
+        for entry in entries:
             node = self._add(entry, self.root)
             if isinstance(entry, Step):
                 for child in entry.items:
@@ -99,9 +110,12 @@ class Timeline(Tree[Item]):
             if node is not None:
                 node.set_label(label(update.item))
                 continue
-            parent = self.root if update.parent is None else self._by_item.get(id(update.parent))
-            if parent is None:  # a step first seen through one of its children
-                parent = self._add(update.parent, self.root)
+            if update.parent is self.scope:
+                parent = self.root
+            else:
+                parent = self._by_item.get(id(update.parent))
+                if parent is None:  # a step first seen through one of its children
+                    parent = self._add(update.parent, self.root)
             latest = self._add(update.item, parent)
         if latest is not None and self.follow:
             self.call_after_refresh(self.scroll_to_node, latest)
@@ -116,82 +130,77 @@ class Timeline(Tree[Item]):
 
 
 def label(item: Item) -> Text:
-    text = Text(_clock(item.time) + " ", style="dim")
+    text = Text(fmt.clock(item.time) + " ", style="dim")
     if isinstance(item, Step):
-        text.append(_state_icon(item.done, item.error))
-        text.append(item.name, style="bold")
-        detail = " ".join(str(item.fields[k]) for k in ("vendor", "model") if item.fields.get(k))
-        text.append(f"  {detail}", style="dim")
-        calls = sum(isinstance(i, Call) for i in item.items)
+        text.append_text(fmt.status_icon(item.status))
+        text.append(f" {item.name}", style="bold")
+        text.append(f"  {item.vendor} {item.model}", style="dim")
+        calls = len(item.calls)
         text.append(f"  {calls} tools" if calls else "", style="dim")
-        text.append(f"  {_duration(item.seconds)}" if item.done else "")
+        text.append(f"  {fmt.duration(item.seconds)}" if item.done else "")
     elif isinstance(item, Call):
-        text.append(_state_icon(item.done, item.error))
-        text.append(item.tool, style="cyan")
-        text.append(f"  {_brief(item.input)}", style="dim")
-        text.append(f"  {_duration(item.seconds)}" if item.done else "")
+        text.append_text(fmt.status_icon(item.status))
+        text.append(f" {item.tool}", style="cyan")
+        text.append(f"  {fmt.brief(item.input)}", style="dim")
+        text.append(f"  {fmt.duration(item.seconds)}" if item.done else "")
     elif item.name == "message":
         thinking = item.fields.get("kind") == "thinking"
         text.append("… " if thinking else "› ", style="dim")
-        text.append(_brief(item.fields.get("text", "")), style="italic dim" if thinking else "")
+        text.append(fmt.brief(item.fields.get("text", ""), 110), style="italic dim" if thinking else "")
     else:
         style = {"warning": "yellow", "error": "red", "run.failed": "red"}.get(item.name, "bold")
         text.append(item.name, style=style)
         scalars = {k: v for k, v in item.fields.items() if isinstance(v, (str, int, float, bool)) and v != ""}
-        text.append(f"  {_brief(scalars.get('text') or scalars)}" if scalars else "", style="dim")
+        text.append(f"  {fmt.brief(scalars.get('text') or scalars)}" if scalars else "", style="dim")
     return text
-
-
-def _state_icon(done: bool, error: Any) -> Text:
-    if error:
-        return Text("✗ ", style="red")
-    return Text("✓ ", style="green") if done else Text("⟳ ", style="yellow")
 
 
 # ------------------------------------------------------------------ detail
 
 class Detail(VerticalScroll):
-    """Everything about the selected run or timeline item, in full."""
+    """Everything about one run or timeline item, in full."""
 
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         self.item: Run | Item | None = None
-        self._body = Static(Text("Select a run.", style="dim"))
+        self._run: Run | None = None
+        self._body = Static(Text("Select something.", style="dim"))
 
     def compose(self):
         yield self._body
 
-    def show(self, item: Run | Item, run: Run) -> None:
-        self.item = item
-        self._body.update(Group(*_describe(item, run)))
+    def show(self, item: Run | Item | None, run: Run) -> None:
+        self.item, self._run = item, run
+        self._body.update(Group(*describe(item, run)) if item is not None else Text("—", style="dim"))
 
-    def refresh_if_showing(self, items: list[Item], run: Run) -> None:
-        if any(i is self.item for i in items):
-            self._body.update(Group(*_describe(self.item, run)))
+    def refresh_if_showing(self, items: list[Item]) -> None:
+        if self._run is not None and any(i is self.item for i in items):
+            self.show(self.item, self._run)
 
 
-def _describe(item: Run | Item, run: Run) -> list[RenderableType]:
+def describe(item: Run | Item, run: Run) -> list[RenderableType]:
     if isinstance(item, Run):
         return [_title(f"{item.workflow} / {item.path.name}"),
-                _facts(status=item.status, verdict=item.verdict, error=item.error, pid=item.pid,
-                       started=_clock(item.started, "%Y-%m-%d %H:%M:%S"), took=_duration(item.seconds),
-                       steps=len(item.steps), tool_calls=len(item.calls),
-                       cost=f"${item.cost_usd:.2f}" if item.cost_usd else None, folder=str(item.path))]
+                facts(status=item.status, verdict=item.verdict, error=item.error, pid=item.pid,
+                      started=fmt.clock(item.started, "%Y-%m-%d %H:%M:%S"), took=fmt.duration(item.seconds),
+                      steps=len(item.steps), tool_calls=len(item.calls), cost=fmt.money(item.cost_usd),
+                      folder=str(item.path))]
     if isinstance(item, Step):
-        parts = [_title(f"step {item.name}"), _facts(**{**item.fields, **item.usage})]
+        parts = [_title(f"step {item.name}"), facts(**{**item.fields, **item.session, **item.usage})]
         prompt = _read(run.path / item.fields["prompt_file"]) if item.fields.get("prompt_file") else None
         parts += [_heading("prompt"), Text(prompt) if prompt else Text("(no prompt saved for this step)", "dim")]
         return parts
     if isinstance(item, Call):
-        parts = [_title(item.tool), _facts(call_id=item.call_id, started=_clock(item.time),
-                                           took=_duration(item.seconds), done=item.done)]
+        parts = [_title(item.tool), facts(step=item.step or "runner", call_id=item.call_id,
+                                          started=fmt.clock(item.time), took=fmt.duration(item.seconds),
+                                          status=item.status)]
         if item.error:
-            parts += [_heading("error", "red"), _data(item.error)]
-        parts += [_heading("input"), _data(item.input), _heading("output"), _data(item.output)]
+            parts += [_heading("error", "red"), data(item.error)]
+        parts += [_heading("input"), data(item.input), _heading("output"), data(item.output)]
         return parts
     if item.name == "message":
         return [_title(f"message ({item.fields.get('kind', 'text')})"), Text(str(item.fields.get("text", "")))]
-    return [_title(item.name), _facts(time=_clock(item.time, "%Y-%m-%d %H:%M:%S")), _data(item.fields)]
+    return [_title(item.name), facts(time=fmt.clock(item.time, "%Y-%m-%d %H:%M:%S")), data(item.fields)]
 
 
 def _title(text: str) -> Text:
@@ -202,18 +211,18 @@ def _heading(text: str, style: str = "bold") -> Text:
     return Text("\n" + text, style=style)
 
 
-def _facts(**facts: Any) -> Table:
+def facts(**values: Any) -> Table:
     table = Table.grid(padding=(0, 2))
     table.add_column(style="dim")
     table.add_column()
-    for key, value in facts.items():
-        if value is None or value == "" or value == {} or value == []:
+    for key, value in values.items():
+        if value is None or value in ("", "-", {}, []):
             continue
         table.add_row(key, value if isinstance(value, str) else json.dumps(value, ensure_ascii=False))
     return table
 
 
-def _data(value: Any) -> RenderableType:
+def data(value: Any) -> RenderableType:
     """Pretty JSON when the value is (or contains) JSON, else plain text."""
     if isinstance(value, str):
         try:
@@ -224,29 +233,6 @@ def _data(value: Any) -> RenderableType:
         return Text("—", style="dim")
     return Syntax(json.dumps(value, indent=2, ensure_ascii=False), "json", word_wrap=True,
                   background_color="default")
-
-
-# ------------------------------------------------------------------ formatting
-
-def _clock(time: datetime | None, fmt: str = "%H:%M:%S") -> str:
-    return time.astimezone().strftime(fmt) if time else "--:--:--"
-
-
-def _duration(seconds: float | None) -> str:
-    if seconds is None:
-        return ""
-    if seconds < 60:
-        return f"{seconds:.1f}s"
-    minutes, secs = divmod(int(seconds), 60)
-    return f"{minutes}m{secs:02d}s" if minutes < 60 else f"{minutes // 60}h{minutes % 60:02d}m"
-
-
-def _brief(value: Any) -> str:
-    if isinstance(value, dict) and len(value) == 1:
-        value = next(iter(value.values()))
-    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
-    text = " ".join(text.split())
-    return text if len(text) <= BRIEF else text[: BRIEF - 1] + "…"
 
 
 def _read(path: Path) -> str | None:

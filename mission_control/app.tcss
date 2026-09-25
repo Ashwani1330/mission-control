@@ -1,27 +1,95 @@
-Horizontal {
-    height: 1fr;
+/* Shared */
+
+#header {
+    height: 1;
+    padding: 0 1;
+    background: $panel;
 }
 
-#runs, #timeline, #detail {
-    height: 1fr;
+DataTable, Tree, Detail, #active {
     border: round $panel;
     border-title-color: $text-muted;
 }
 
-#runs:focus-within, #timeline:focus, #detail:focus {
+DataTable:focus, Tree:focus, Detail:focus {
     border: round $accent;
     border-title-color: $accent;
 }
 
-#runs {
-    width: 74;
+Horizontal {
+    height: 1fr;
 }
 
-#timeline {
-    width: 1fr;
-}
-
-#detail {
-    width: 1fr;
+Detail {
     padding: 0 1;
+}
+
+/* Overview: a 2 x 2 grid */
+
+#overview {
+    grid-size: 2 2;
+    grid-columns: 3fr 2fr;
+    grid-rows: 1fr 1fr;
+    height: 1fr;
+}
+
+#overview > * {
+    height: 1fr;
+}
+
+#active {
+    padding: 0 1;
+}
+
+/* Agents and session */
+
+#filters {
+    height: 1;
+    padding: 0 1;
+    color: $text-muted;
+}
+
+#agents {
+    height: 1fr;
+}
+
+#session-facts {
+    height: auto;
+    max-height: 10;
+    padding: 0 1;
+    border-bottom: solid $panel;
+}
+
+#session-timeline, #session-detail {
+    width: 1fr;
+}
+
+/* Plugins */
+
+#plugin-side {
+    width: 38;
+}
+
+#plugins, #plugin-tools, #models {
+    height: 1fr;
+}
+
+#plugin-calls, #plugin-detail {
+    width: 2fr;
+}
+
+/* Runs and models */
+
+#runs {
+    width: 3fr;
+    height: 1fr;
+}
+
+#run-detail {
+    width: 2fr;
+}
+
+#models-note {
+    padding: 0 1;
+    color: $text-muted;
 }

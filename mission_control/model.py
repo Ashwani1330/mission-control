@@ -1,8 +1,8 @@
-"""Fold trace events (docs/trace-format.md) into a run's timeline. No Textual here.
+"""Fold trace events (docs/trace-format.md) into a run: steps, tool calls, events. No Textual here.
 
-A timeline is a list of entries; a Step holds its own entries. Every `Run.apply`
-returns an `Update` saying which item changed, so a view can patch itself instead
-of rebuilding."""
+A run's timeline is a list of entries; a Step holds its own entries. Every
+`Run.apply` returns an `Update` saying which item changed, so a view can patch
+itself instead of rebuilding."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from typing import Any
 LIFECYCLE = {"run.started": "started", "run.completed": "completed", "run.failed": "failed",
              "mission.started": "started", "mission.completed": "completed", "mission.failed": "failed"}
 STAMP = re.compile(r"-\d{8}T\d{6}Z$")
+TOKEN_KEYS = ("input_tokens", "cached_input_tokens", "output_tokens")
 
 
 @dataclass(eq=False)
@@ -33,6 +34,7 @@ class Call:
     tool: str
     time: datetime | None
     input: Any = None
+    step: str | None = None  # None: made by the runner's own code
     output: Any = None
     error: Any = None
     done: bool = False
@@ -45,24 +47,55 @@ class Call:
             return self.reported_seconds
         return _elapsed(self.time, self.ended)
 
+    @property
+    def status(self) -> str:
+        return "failed" if self.error else "done" if self.done else "running"
+
 
 @dataclass(eq=False)
 class Step:
     name: str
     time: datetime | None
-    fields: dict[str, Any] = field(default_factory=dict)  # from step.started: role, vendor, model, ...
-    usage: dict[str, Any] = field(default_factory=dict)   # from step.completed
+    fields: dict[str, Any] = field(default_factory=dict)   # from step.started: role, vendor, model, ...
+    usage: dict[str, Any] = field(default_factory=dict)    # from step.completed
+    live: dict[str, float] = field(default_factory=dict)   # usage events seen while running
+    session: dict[str, Any] = field(default_factory=dict)  # from the session event
     items: list[Call | Event] = field(default_factory=list)
     done: bool = False
     ended: datetime | None = None
+
+    @property
+    def role(self) -> str:
+        return str(self.fields.get("role") or "")
+
+    @property
+    def vendor(self) -> str:
+        return str(self.fields.get("vendor") or self.usage.get("vendor") or "")
+
+    @property
+    def model(self) -> str:
+        return str(self.fields.get("model") or self.usage.get("model") or "")
 
     @property
     def error(self) -> Any:
         return self.usage.get("error")
 
     @property
+    def status(self) -> str:
+        return "failed" if self.error else "done" if self.done else "running"
+
+    @property
     def seconds(self) -> float | None:
         return self.usage.get("seconds") or _elapsed(self.time, self.ended)
+
+    @property
+    def tokens(self) -> dict[str, float]:
+        source = self.usage if self.done else self.live
+        return {key: source.get(key) or 0 for key in (*TOKEN_KEYS, "cost_usd")}
+
+    @property
+    def calls(self) -> list[Call]:
+        return [i for i in self.items if isinstance(i, Call)]
 
 
 Item = Step | Call | Event
@@ -82,7 +115,8 @@ class Run:
         self.mission = STAMP.sub("", path.name)
         self.entries: list[Item] = []
         self.steps: dict[str, Step] = {}
-        self.calls: dict[tuple[str | None, str], Call] = {}
+        self.calls: dict[tuple[str | None, str], Call] = {}  # in start order
+        self.models: dict[str, Any] = {}  # role -> model spec, as the runner declared it
         self.started: datetime | None = None
         self.last: datetime | None = None
         self.lifecycle: str | None = None
@@ -115,6 +149,14 @@ class Run:
             step.usage, step.done, step.ended = fields, True, time
             return Update(step, None, new=new)
         parent = self._step(step_name, time) if step_name else None
+        if parent is not None and name in ("usage", "session"):  # folded into the step, not shown as items
+            if name == "session":
+                parent.session = fields
+            else:
+                for key, value in fields.items():
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        parent.live[key] = parent.live.get(key, 0) + value
+            return Update(parent, None, new=False)
         if name in ("tool.started", "tool.completed"):
             return self._tool(name, time, fields, parent)
         item = Event(name, time, fields)
@@ -129,6 +171,7 @@ class Run:
         if state == "started":
             self.pid = fields.get("pid")
             self.error = None
+            self.models = fields.get("models") or self.models
         self.verdict = fields.get("verdict", self.verdict)
         self.error = fields.get("error", self.error)
 
@@ -144,7 +187,9 @@ class Run:
         call = self.calls.get(key)
         new = call is None
         if call is None:
-            call = self.calls[key] = Call(call_id, str(fields.get("tool", "?")), time, fields.get("input"))
+            call = Call(call_id, str(fields.get("tool", "?")), time, fields.get("input"),
+                        step=parent.name if parent else None)
+            self.calls[key] = call
             self._add(call, parent)
         if name == "tool.completed":
             call.output, call.error, call.done, call.ended = fields.get("output"), fields.get("error"), True, time
@@ -170,13 +215,33 @@ class Run:
         return "unknown"
 
     @property
-    def cost_usd(self) -> float:
-        return sum(s.usage.get("cost_usd") or 0 for s in self.steps.values())
-
-    @property
     def seconds(self) -> float | None:
         end = datetime.now(self.started.tzinfo) if self.status == "running" and self.started else self.last
         return _elapsed(self.started, end)
+
+    @property
+    def tokens(self) -> dict[str, float]:
+        totals = dict.fromkeys((*TOKEN_KEYS, "cost_usd"), 0.0)
+        for step in self.steps.values():
+            for key, value in step.tokens.items():
+                totals[key] += value
+        return totals
+
+    @property
+    def cost_usd(self) -> float:
+        return self.tokens["cost_usd"]
+
+    @property
+    def runner_items(self) -> list[Call | Event]:
+        """What the runner did itself, outside any agent step."""
+        return [e for e in self.entries if not isinstance(e, Step)]
+
+    @property
+    def active_step(self) -> Step | None:
+        """The step running now, else the last one."""
+        steps = list(self.steps.values())
+        running = [s for s in steps if not s.done]
+        return running[-1] if running else steps[-1] if steps else None
 
 
 def _parse_time(value: Any) -> datetime | None:

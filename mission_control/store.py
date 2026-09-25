@@ -59,3 +59,11 @@ class RunStore:
             if updates:
                 changed.append((run, updates))
         return changed
+
+    @property
+    def runs_by_key(self) -> dict[str, Run]:
+        """Runs keyed by their folder as a string (the row key tables use)."""
+        return {str(path): run for path, run in self.runs.items()}
+
+    def newest(self) -> Run | None:
+        return max(self.runs.values(), key=lambda r: r.started.timestamp() if r.started else 0.0, default=None)

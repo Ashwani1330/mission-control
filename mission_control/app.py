@@ -1,18 +1,24 @@
-"""Mission Control: watch pipeline runs live. Read-only; it never touches a run."""
+"""Mission Control: watch pipeline runs live. Read-only; it never touches a run.
+
+Each screen answers one question (Textual "modes", one per key). The app owns
+the data: it polls the traces and tells the visible screen what changed."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import ClassVar
 
-from textual.app import App, ComposeResult
+from textual.app import App
 from textual.binding import Binding, BindingType
-from textual.containers import Horizontal
-from textual.widgets import DataTable, Footer, Header, Tree
 
 from mission_control.model import Run
+from mission_control.screens.agents import AgentsScreen, SessionScreen
+from mission_control.screens.base import View
+from mission_control.screens.models import ModelsScreen
+from mission_control.screens.overview import OverviewScreen
+from mission_control.screens.plugins import PluginsScreen
+from mission_control.screens.runs import RunsScreen
 from mission_control.store import RunStore
-from mission_control.widgets import Detail, RunTable, Timeline
 
 POLL_SECONDS = 0.5
 
@@ -20,73 +26,58 @@ POLL_SECONDS = 0.5
 class MissionControl(App):
     TITLE = "Mission Control"
     CSS_PATH = "app.tcss"
+    MODES: ClassVar[dict[str, type[View]]] = {
+        "overview": OverviewScreen, "runs": RunsScreen, "agents": AgentsScreen,
+        "plugins": PluginsScreen, "models": ModelsScreen,
+    }
+    DEFAULT_MODE = "overview"
     BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("o", "switch_mode('overview')", "Overview"),
+        Binding("r", "switch_mode('runs')", "Runs"),
+        Binding("a", "switch_mode('agents')", "Agents"),
+        Binding("p", "switch_mode('plugins')", "Plugins"),
+        Binding("m", "switch_mode('models')", "Models"),
+        Binding("escape", "back", "Back"),
         Binding("q", "quit", "Quit"),
-        Binding("f", "toggle_follow", "Follow"),
-        Binding("e", "expand_all", "Expand all"),
-        Binding("c", "collapse_all", "Collapse all"),
     ]
 
     def __init__(self, runs_dir: Path):
         super().__init__()
         self.store = RunStore(runs_dir)
-        self.selected: Run | None = None
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Horizontal():
-            yield RunTable(id="runs")
-            yield Timeline(id="timeline")
-            yield Detail(id="detail")
-        yield Footer()
+        self.store.poll()
+        self.selected: Run | None = self.store.newest()
 
     def on_mount(self) -> None:
-        for pane, title in (("#runs", "Runs"), ("#timeline", "Timeline"), ("#detail", "Detail")):
-            self.query_one(pane).border_title = title
-        self.sub_title = f"{self.store.root} · following"
-        self.poll()
         self.set_interval(POLL_SECONDS, self.poll)
-        self.query_one(RunTable).focus()
 
     def poll(self) -> None:
-        changed = self.store.poll()
-        table = self.query_one(RunTable)
-        table.show(list(self.store.runs.values()))
-        self._select(table.current_key)  # sorting can put a different run under the cursor
-        for run, updates in changed:
-            if run is self.selected:
-                self.query_one(Timeline).apply(updates)
-                self.query_one(Detail).refresh_if_showing([u.item for u in updates], run)
+        changed = {id(run): updates for run, updates in self.store.poll()}
+        if self.selected is None:
+            self.selected = self.store.newest()
+        updates = changed.get(id(self.selected), []) if self.selected else []
+        running = self.selected is not None and self.selected.status == "running"
+        if isinstance(self.screen, View) and (changed or running):
+            self.screen.refresh_view(updates)
 
-    # ------------------------------------------------------------ selection (messages up from the panes)
+    # ------------------------------------------------------------ navigation
 
-    def on_data_table_row_highlighted(self, _event: DataTable.RowHighlighted) -> None:
-        # Read the cursor, not the event: a queued event can predate a re-sort.
-        self._select(self.query_one(RunTable).current_key)
-
-    def _select(self, key: str | None) -> None:
-        run = self.store.runs.get(Path(key)) if key else None
-        if run is None or run is self.selected:
-            return
+    def select_run(self, run: Run) -> None:
         self.selected = run
-        self.query_one(Timeline).show(run)
-        self.query_one(Detail).show(run, run)
+        self.switch_mode("overview")
+        if isinstance(self.screen, View):
+            self.screen.refresh_view([])
 
-    def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
-        if event.node.data is not None and self.selected is not None:
-            self.query_one(Detail).show(event.node.data, self.selected)
+    def open_session(self, key: str | None) -> None:
+        if key is not None:
+            self.push_screen(SessionScreen(key))
 
-    # ------------------------------------------------------------ actions
+    def open_plugin(self, name: str | None) -> None:
+        self.switch_mode("plugins")
+        if isinstance(self.screen, PluginsScreen):
+            self.screen.show_plugin(name)
 
-    def action_toggle_follow(self) -> None:
-        timeline = self.query_one(Timeline)
-        timeline.follow = not timeline.follow
-        self.sub_title = f"{self.store.root}" + (" · following" if timeline.follow else "")
-
-    def action_expand_all(self) -> None:
-        self.query_one(Timeline).root.expand_all()
-
-    def action_collapse_all(self) -> None:
-        timeline = self.query_one(Timeline)
-        for node in timeline.root.children:
-            node.collapse_all()
+    def action_back(self) -> None:
+        if len(self.screen_stack) > 1:
+            self.pop_screen()
+        elif self.current_mode != "overview":
+            self.switch_mode("overview")
