@@ -1,15 +1,18 @@
 # Mission Control
 
-**A terminal mission control for multi-agent pipelines.** Watch every agent step, tool
-call, message, prompt, token and dollar of a run *as it happens*, whichever agent CLI
-(Codex, Claude, …) or plain code made it.
+**A terminal mission control for multi-agent pipelines.** Start a mission from a
+plain-language request, pick the model for each role, watch every agent step, tool call,
+message, prompt, token and dollar *as it happens*, pause or stop it, send the agents a
+note, and browse the results, whichever agent CLI (Codex, Claude, …) or plain code does
+the work.
 
 ![Overview of a live run](docs/images/overview.svg)
 
-Mission Control is read-only and pipeline-agnostic: it follows trace files
+Mission Control is pipeline-agnostic: it follows trace files
 (`<runs>/<workflow>/<run-id>/events.jsonl`) that your pipeline appends to, and never
 imports your code. Anything that writes the [trace format](docs/trace-format.md), in any
-language, shows up.
+language, shows up; pipelines that also read a small control file can be steered, and
+ones listed in `mission-control.toml` can be launched.
 
 ## How it works
 
@@ -78,11 +81,17 @@ bottom always lists the keys that work where you are.
 | Key | Screen | Answers |
 |---|---|---|
 | `o` | **Overview** | How is this run going? Active step and its latest calls, agents, plugins, progress log. |
+| `l` | **Live** | What is every agent doing right now? One tile per agent, running ones first; `enter` opens a tile. |
 | `r` | **Runs** | Which runs exist? Newest first, with result and cost; `enter` selects one. |
 | `a` | **Agents** | Who did what? Every step with vendor, role, model, time, tokens and cost, plus the runner's own work. `v` / `l` / `s` filter by vendor / role / status. |
-| `enter` | **Session** | What exactly happened in one step? Prompt to result, every message and tool call with full input and output. `f` follows the newest. |
+| `enter` | **Session** | What exactly happened in one step? Prompt to result, every message and tool call with full input and output. `w` follows the newest. |
 | `p` | **Plugins** | Which tools were used, and how? Calls grouped by plugin (yc, web, shell, skills, files) and by tool. |
 | `m` | **Models** | Which model did each role run on, declared and actual? |
+| `f` | **Files** | What did the run produce? The run folder as a tree; Markdown rendered, JSON pretty-printed; `e` opens a file in your editor. |
+| `n` | **New mission** | Start one: write a request, `ctrl+g` drafts the mission, edit it, pick a model per role, `ctrl+l` launches. |
+
+Steering a running mission: `P` pause / resume, `X` stop (asks first), `M` send a note to
+the next agent step. `t` switches the colour theme (dark, dusk, light; remembered).
 
 In any detail pane, `v` opens the full text (prompts and outputs can be large; the
 preview shows the first lines).
@@ -91,7 +100,9 @@ preview shows the first lines).
 |---|---|
 | ![A step's session](docs/images/session.svg) | ![Tool calls grouped by plugin](docs/images/plugins.svg) |
 
-![Every agent step](docs/images/agents.svg)
+| Live agents | Every agent step |
+|---|---|
+| ![One tile per agent](docs/images/live.svg) | ![Every agent step](docs/images/agents.svg) |
 
 ## Feeding it: the trace format
 
@@ -136,6 +147,33 @@ To get tool calls from inside an agent, translate its CLI's stream (for example
 `codex exec --json` or `claude -p --output-format stream-json`) into `tool.*`,
 `message` and `usage` events as lines arrive.
 
+## Launching and steering
+
+**Launch.** Put a `mission-control.toml` next to your runs folder (or in the working
+directory, or pass `--config`). Each workflow gives a `run` command and, optionally, a
+`draft` command that turns a request into a mission file; commands run in the config's
+folder.
+
+```toml
+[models]
+choices = ["codex/gpt-5.6-sol", "claude/claude-opus-5-5", "claude/claude-sonnet-5"]
+
+[[workflow]]
+name = "research"
+description = "Find and shortlist companies for a goal"
+draft = ["python3", "-m", "workflows.research.runner", "--draft", "{request}", "--out", "{mission}"]
+run = ["python3", "-m", "workflows.research.runner", "{mission}"]
+```
+
+Mission Control writes the approved mission (with a `"models": {role: {vendor, model,
+effort}}` map) to `.mission-control/launches/`, starts `run` detached so it outlives the
+TUI, and opens the run as soon as its trace appears. Your runner should re-check the
+chosen models against its own allowlist.
+
+**Steer.** `P`, `X` and `M` write `<run-dir>/control.json`; a runner that checks it before
+each agent step can pause there, stop cleanly, and pass notes into the next prompt. See
+[docs/trace-format.md](docs/trace-format.md#control-mission-control--runner).
+
 ## Plugins
 
 A plugin is a rule in [`mission_control/plugins.py`](mission_control/plugins.py): a
@@ -158,6 +196,9 @@ mission_control/
   model.py     fold trace events into runs, steps and tool calls (no Textual)
   plugins.py   group tool calls into plugins (no Textual)
   store.py     find runs; tail each trace from a byte offset
+  launch.py    read mission-control.toml; draft and launch missions (no Textual)
+  control.py   write control.json to pause, stop or send notes
+  themes.py    colour themes; settings.py remembers the choice
   fmt.py       text formatting shared by every screen
   widgets.py   header, table syncing, timeline tree, detail pane, full-text viewer
   screens/     one module per screen, on a shared View base
@@ -173,10 +214,11 @@ into rows; the app owns polling and tells the visible screen what changed.
 
 From observer to mission control, one step at a time:
 
-1. **Observe** (now): live, read-only screens.
-2. **Launch**: start a pipeline run from Mission Control.
-3. **Steer**: pause and stop between steps, through a small control file the runner reads.
-4. **Redirect**: send a note that the next step's prompt includes.
+1. **Observe**: live screens for runs, agents, sessions, plugins, models, files. Done.
+2. **Launch**: start a mission from a request, with a model per role. Done.
+3. **Steer**: pause, stop and notes between steps. Done.
+4. **Next**: compare runs side by side; per-plugin views (e.g. yc CLI vs MCP usage over
+   time); budgets and alerts; redirecting a single agent.
 
 ## License
 
