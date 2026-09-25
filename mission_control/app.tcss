@@ -254,3 +254,27 @@ FullText {
     height: auto;
     margin-top: 1;
 }
+
+/* ---------------------------------------------------------------- live tiles */
+
+#live {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    padding: 0 1;
+    height: 1fr;
+}
+
+.tile {
+    height: 1fr;
+    border: none;
+    border-top: solid $panel;
+    border-title-align: left;
+    border-title-color: $text;
+    padding: 0 1;
+    overflow: hidden;
+}
+
+.tile:focus {
+    border-top: solid $accent;
+    background: $surface;
+}

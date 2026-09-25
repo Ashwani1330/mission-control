@@ -116,3 +116,17 @@ async def test_results_previews_files_and_theme_cycles(tmp_path, research_run):
         await pilot.press("t")
         await pilot.pause()
         assert app.theme != first and settings.load()["theme"] == app.theme
+
+
+async def test_live_tiles_show_each_agent_and_open_sessions(tmp_path, research_run):
+    from mission_control.screens.live import Tile
+    app = MissionControl(tmp_path)
+    async with app.run_test(size=(180, 45)) as pilot:
+        await pilot.press("l")
+        await pilot.pause()
+        shown = [t for t in app.screen.query(Tile) if t.display]
+        assert [t.key for t in shown] == [RUNNER, "planner-r1", "observer-1"]
+        shown[2].focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, SessionScreen) and app.screen.key == "observer-1"

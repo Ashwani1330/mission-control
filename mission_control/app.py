@@ -15,6 +15,7 @@ from mission_control import fmt, launch, settings, themes
 from mission_control.model import Run
 from mission_control.screens.agents import AgentsScreen, SessionScreen
 from mission_control.screens.base import View
+from mission_control.screens.live import LiveScreen
 from mission_control.screens.models import ModelsScreen
 from mission_control.screens.new_mission import NewMissionScreen
 from mission_control.screens.overview import OverviewScreen
@@ -31,12 +32,13 @@ class MissionControl(App):
     CSS_PATH = "app.tcss"
     MODES: ClassVar[dict[str, type[View]]] = {
         "overview": OverviewScreen, "runs": RunsScreen, "agents": AgentsScreen,
-        "plugins": PluginsScreen, "models": ModelsScreen, "results": ResultsScreen,
+        "plugins": PluginsScreen, "models": ModelsScreen, "results": ResultsScreen, "live": LiveScreen,
     }
     DEFAULT_MODE = "overview"
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("o", "switch_mode('overview')", "Overview"),
         Binding("r", "switch_mode('runs')", "Runs"),
+        Binding("l", "switch_mode('live')", "Live"),
         Binding("a", "switch_mode('agents')", "Agents"),
         Binding("p", "switch_mode('plugins')", "Plugins"),
         Binding("m", "switch_mode('models')", "Models"),
