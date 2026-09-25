@@ -69,7 +69,8 @@ DataTable > .datatable--hover, Tree > .tree--highlight {
     background: $surface;
 }
 
-Horizontal {
+/* A screen's main row fills the space between header and footer (not rows inside widgets). */
+Screen > Horizontal {
     height: 1fr;
 }
 
@@ -182,4 +183,74 @@ FullText {
     border-title-color: $text-muted;
     border-title-style: bold;
     padding: 0 1;
+}
+
+/* ---------------------------------------------------------------- new mission */
+
+#nm-title {
+    height: 1;
+    padding: 0 1;
+    background: $surface;
+}
+
+#nm-help {
+    padding: 1 2;
+}
+
+#nm-body {
+    height: 1fr;
+    padding: 1 2;
+}
+
+#nm-left, #nm-right {
+    width: 1fr;
+    padding: 0 1;
+}
+
+#nm-body Label {
+    color: $text-muted;
+    margin-top: 1;
+}
+
+#nm-workflow {
+    width: 1fr;
+}
+
+#nm-request {
+    height: 1fr;
+}
+
+#nm-mission {
+    height: 2fr;
+}
+
+#nm-models {
+    height: 1fr;
+}
+
+.nm-model-row {
+    height: 3;
+}
+
+.nm-role {
+    width: 14;
+    margin-top: 1;
+}
+
+.nm-model {
+    width: 1fr;
+}
+
+.nm-effort {
+    width: 16;
+}
+
+.nm-buttons {
+    height: 3;
+    margin-top: 1;
+}
+
+#nm-status {
+    height: auto;
+    margin-top: 1;
 }

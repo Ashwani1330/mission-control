@@ -11,11 +11,12 @@ from typing import ClassVar
 from textual.app import App
 from textual.binding import Binding, BindingType
 
-from mission_control import fmt, settings, themes
+from mission_control import fmt, launch, settings, themes
 from mission_control.model import Run
 from mission_control.screens.agents import AgentsScreen, SessionScreen
 from mission_control.screens.base import View
 from mission_control.screens.models import ModelsScreen
+from mission_control.screens.new_mission import NewMissionScreen
 from mission_control.screens.overview import OverviewScreen
 from mission_control.screens.plugins import PluginsScreen
 from mission_control.screens.results import ResultsScreen
@@ -41,12 +42,22 @@ class MissionControl(App):
         Binding("m", "switch_mode('models')", "Models"),
         Binding("f", "switch_mode('results')", "Files"),
         Binding("t", "next_theme", "Theme"),
+        Binding("n", "new_mission", "New mission"),
         Binding("escape", "back", "Back"),
         Binding("q", "quit", "Quit"),
     ]
 
-    def __init__(self, runs_dir: Path):
+    def __init__(self, runs_dir: Path, config_path: Path | None = None):
         super().__init__()
+        self.config: launch.Config | None = None
+        self.config_problem: str | None = None
+        found = launch.find_config(runs_dir, config_path)
+        if found is not None:
+            try:
+                self.config = launch.load_config(found)
+            except launch.LaunchError as exc:
+                self.config_problem = str(exc)
+        self.launches: list[launch.Launch] = []
         self.store = RunStore(runs_dir)
         self.store.poll()
         self.selected: Run | None = self.store.newest()
@@ -75,12 +86,39 @@ class MissionControl(App):
         changed = {id(run): updates for run, updates in self.store.poll()}
         if self.selected is None:
             self.selected = self.store.newest()
+        self._follow_launches()
         if not isinstance(self.screen, View):
             return
         if changed:
             self.screen.refresh_view(changed.get(id(self.selected), []) if self.selected else [])
         elif self.selected is not None and self.selected.status == "running":
             self.screen.tick()  # nothing new: only the clock moved
+
+    # ------------------------------------------------------------ launching
+
+    def action_new_mission(self) -> None:
+        self.push_screen(NewMissionScreen(self.config, self.config_problem))
+
+    def start_launch(self, workflow: str, mission: dict) -> None:
+        if self.config is None:
+            raise launch.LaunchError("no mission-control.toml loaded")
+        self.launches.append(launch.launch(self.config, workflow, mission))
+        self.notify(f"Launched {mission['name']}; waiting for its run to appear…", timeout=4)
+
+    def _follow_launches(self) -> None:
+        """Open a launched mission's run as soon as it appears; report runners that die first."""
+        for pending in list(self.launches):
+            run = next((r for r in self.store.runs.values()
+                        if r.mission == pending.slug and r.started and r.started.timestamp() >= pending.started - 5),
+                       None)
+            if run is not None:
+                self.launches.remove(pending)
+                self.select_run(run)
+                self.notify(f"{pending.mission['name']} is running", timeout=3)
+            elif pending.process.poll() is not None:
+                self.launches.remove(pending)
+                self.notify(f"{pending.mission['name']} stopped before starting (exit {pending.process.returncode}):\n"
+                            f"{launch.log_tail(pending.log, 400)}", severity="error", timeout=15)
 
     # ------------------------------------------------------------ navigation
 
